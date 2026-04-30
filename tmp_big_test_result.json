@@ -1,0 +1,118 @@
+{
+  "optimized": {
+    "lanyinxuguo": {
+      "cold_rate": 0,
+      "cold_mean": 0,
+      "event_cold_mean": 0,
+      "natural_cold_mean": 0,
+      "plots": 6.091666666666667,
+      "rank_gain": 0,
+      "births": 1.9666666666666666,
+      "secret_births": 0.075,
+      "favor": 96.88447329893548,
+      "prestige": 6892.228271788694,
+      "silver_spent": 10679.190861742425,
+      "case_interventions": 41.75833333333333
+    },
+    "fushengrumeng": {
+      "cold_rate": 0.1,
+      "cold_mean": 0.14166666666666666,
+      "event_cold_mean": 0.13333333333333333,
+      "natural_cold_mean": 0.008333333333333333,
+      "plots": 9.7,
+      "rank_gain": 10.616666666666667,
+      "births": 1.3,
+      "secret_births": 0.09166666666666666,
+      "favor": 96.57675325010135,
+      "prestige": 3830.422046905035,
+      "silver_spent": 6826.9650757575755,
+      "case_interventions": 22.425
+    },
+    "yingluoyeting": {
+      "cold_rate": 0.425,
+      "cold_mean": 0.475,
+      "event_cold_mean": 0.3416666666666667,
+      "natural_cold_mean": 0.13333333333333333,
+      "plots": 7.108333333333333,
+      "rank_gain": 17.341666666666665,
+      "births": 1.4166666666666667,
+      "secret_births": 0.058333333333333334,
+      "favor": 93.5705330957009,
+      "prestige": 2903.491493947339,
+      "silver_spent": 4700.220208333333,
+      "case_interventions": 18.408333333333335
+    },
+    "chenyuansucuo": {
+      "cold_rate": 0,
+      "cold_mean": 0,
+      "event_cold_mean": 0,
+      "natural_cold_mean": 0,
+      "plots": 5.025,
+      "rank_gain": 5.575,
+      "births": 2.408333333333333,
+      "secret_births": 0.06666666666666667,
+      "favor": 96.02712461654689,
+      "prestige": 4338.892852373963,
+      "silver_spent": 8857.821780303031,
+      "case_interventions": 35.675
+    }
+  },
+  "stress": {
+    "lanyinxuguo": {
+      "cold_rate": 0,
+      "cold_mean": 0,
+      "event_cold_mean": 0,
+      "natural_cold_mean": 0,
+      "plots": 35.13333333333333,
+      "rank_gain": 0,
+      "births": 0.11666666666666667,
+      "secret_births": 0,
+      "favor": 96.86666666666666,
+      "prestige": 5991.387774148975,
+      "silver_spent": 9997.267443181818,
+      "case_interventions": 40.15833333333333
+    },
+    "fushengrumeng": {
+      "cold_rate": 0.13333333333333333,
+      "cold_mean": 0.21666666666666667,
+      "event_cold_mean": 0.20833333333333334,
+      "natural_cold_mean": 0.008333333333333333,
+      "plots": 33.15,
+      "rank_gain": 11.083333333333334,
+      "births": 0.26666666666666666,
+      "secret_births": 0.016666666666666666,
+      "favor": 95.55747252172768,
+      "prestige": 3782.038960414768,
+      "silver_spent": 6637.581287878788,
+      "case_interventions": 22.733333333333334
+    },
+    "yingluoyeting": {
+      "cold_rate": 0.48333333333333334,
+      "cold_mean": 0.7416666666666667,
+      "event_cold_mean": 0.675,
+      "natural_cold_mean": 0.06666666666666667,
+      "plots": 32.166666666666664,
+      "rank_gain": 17.125,
+      "births": 0.25,
+      "secret_births": 0,
+      "favor": 92.75803546589405,
+      "prestige": 3050.6892095518133,
+      "silver_spent": 4652.655520833333,
+      "case_interventions": 20.483333333333334
+    },
+    "chenyuansucuo": {
+      "cold_rate": 0.2916666666666667,
+      "cold_mean": 0.8666666666666667,
+      "event_cold_mean": 0.38333333333333336,
+      "natural_cold_mean": 0.48333333333333334,
+      "plots": 18.416666666666668,
+      "rank_gain": 0.38333333333333336,
+      "births": 1.2666666666666666,
+      "secret_births": 0.041666666666666664,
+      "favor": 65.68171691287027,
+      "prestige": 2387.4439817006214,
+      "silver_spent": 6281.254734848485,
+      "case_interventions": 27.5
+    }
+  }
+}

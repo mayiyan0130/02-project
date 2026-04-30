@@ -1,0 +1,551 @@
+{
+  "summary": {
+    "GA": {
+      "avg_valid_mean": 16380.841851292927,
+      "avg_valid_worst": 10691.421272387353,
+      "avg_valid_cold": 0.53125,
+      "best": {
+        "fitness": 20242.620288328435,
+        "train_mean": 19619.0011266988,
+        "valid_mean": 18343.08013551926,
+        "valid_worst": 12692.472060755474,
+        "valid_cold": 0.375,
+        "route_scores": {
+          "lanyinxuguo": 23396.924367837983,
+          "fushengrumeng": 17382.5379181955,
+          "yingluoyeting": 12692.472060755474,
+          "chenyuansucuo": 19900.386195288083
+        },
+        "route_cold": {
+          "lanyinxuguo": 0,
+          "fushengrumeng": 0,
+          "yingluoyeting": 1.5,
+          "chenyuansucuo": 0
+        },
+        "theta": [
+          0.17313435754409862,
+          0.36684700479686044,
+          0.9599394906359288,
+          1.0,
+          0.45625642841782077,
+          0.6896280434875811,
+          0.3352620052323445,
+          0.08314755527432784,
+          0.866729423925367,
+          0.6673093228289708,
+          0.5000578035016926,
+          0.37859788812427275,
+          0.37850758144291097,
+          0.20159352015499185,
+          0.004101043231659857,
+          0.2266597870202971
+        ]
+      }
+    },
+    "DE": {
+      "avg_valid_mean": 18045.14002716478,
+      "avg_valid_worst": 14694.441052978676,
+      "avg_valid_cold": 0.1953125,
+      "best": {
+        "fitness": 20289.850020742164,
+        "train_mean": 19701.314039175926,
+        "valid_mean": 19447.159139023523,
+        "valid_worst": 17122.186664995064,
+        "valid_cold": 0.0625,
+        "route_scores": {
+          "lanyinxuguo": 23607.602937603137,
+          "fushengrumeng": 17394.48528529291,
+          "yingluoyeting": 17122.186664995064,
+          "chenyuansucuo": 19664.361668202982
+        },
+        "route_cold": {
+          "lanyinxuguo": 0,
+          "fushengrumeng": 0,
+          "yingluoyeting": 0.25,
+          "chenyuansucuo": 0
+        },
+        "theta": [
+          0.1212241332344588,
+          0.0,
+          1.0,
+          0.219835513899306,
+          0.0,
+          0.026204506305883654,
+          0.5518589814742099,
+          0.1366961418938762,
+          0.8644131418485106,
+          0.07868503990063136,
+          0.0,
+          0.0,
+          0.0628533446557716,
+          0.0,
+          0.0070737984134251275,
+          0.0
+        ]
+      }
+    },
+    "CCEA": {
+      "avg_valid_mean": 17853.185408422156,
+      "avg_valid_worst": 12185.970721679103,
+      "avg_valid_cold": 0.359375,
+      "best": {
+        "fitness": 20290.161943529318,
+        "train_mean": 19757.644941059385,
+        "valid_mean": 18471.52088912337,
+        "valid_worst": 13238.03200747147,
+        "valid_cold": 0.28125,
+        "route_scores": {
+          "lanyinxuguo": 22627.13432302531,
+          "fushengrumeng": 17507.352859949664,
+          "yingluoyeting": 13238.03200747147,
+          "chenyuansucuo": 20513.564366047034
+        },
+        "route_cold": {
+          "lanyinxuguo": 0,
+          "fushengrumeng": 0,
+          "yingluoyeting": 1.125,
+          "chenyuansucuo": 0
+        },
+        "theta": [
+          0.01082712525868364,
+          0.8964473075995326,
+          0.6673139988684217,
+          1.0,
+          0.024595681222454542,
+          0.869890936010288,
+          0.8216899051260368,
+          0.013080233890295561,
+          0.9988035752336393,
+          0.23402607958065122,
+          0.15570520824738987,
+          0.3561725657266937,
+          0.4536283553939472,
+          0.4318637853436119,
+          0.22893055337916818,
+          0.7026372321522467
+        ]
+      }
+    },
+    "EDA": {
+      "avg_valid_mean": 18213.293170820743,
+      "avg_valid_worst": 12640.52251866612,
+      "avg_valid_cold": 0.3125,
+      "best": {
+        "fitness": 20445.388385301027,
+        "train_mean": 19835.242607981294,
+        "valid_mean": 18793.504405448548,
+        "valid_worst": 14371.525951833459,
+        "valid_cold": 0.21875,
+        "route_scores": {
+          "lanyinxuguo": 23186.97315415608,
+          "fushengrumeng": 17158.887030001053,
+          "yingluoyeting": 14371.525951833459,
+          "chenyuansucuo": 20456.6314858036
+        },
+        "route_cold": {
+          "lanyinxuguo": 0,
+          "fushengrumeng": 0,
+          "yingluoyeting": 0.875,
+          "chenyuansucuo": 0
+        },
+        "theta": [
+          0.23738470498145453,
+          0.44518787659177755,
+          0.8145143606473061,
+          0.909268255180105,
+          0.3269007005012226,
+          0.36731680977125003,
+          0.32769572412617376,
+          0.02922199807091107,
+          0.8464959247608688,
+          0.3460836980489477,
+          0.49043984311357813,
+          0.4337823297840099,
+          0.5440411027004728,
+          0.24214545962327236,
+          0.32135020231755407,
+          0.7436115864549141
+        ]
+      }
+    }
+  },
+  "winner": "DE",
+  "per_route": {
+    "lanyinxuguo": {
+      "alloc": [
+        [
+          "temperament",
+          25.2
+        ],
+        [
+          "politics",
+          18.5
+        ],
+        [
+          "intrigue",
+          16.9
+        ],
+        [
+          "appearance",
+          11.4
+        ],
+        [
+          "fortune",
+          11.0
+        ],
+        [
+          "medicine",
+          9.7
+        ],
+        [
+          "health",
+          0.0
+        ]
+      ],
+      "actions": [
+        [
+          "book",
+          1.0
+        ],
+        [
+          "train_intrigue",
+          0.94
+        ],
+        [
+          "plot",
+          0.533
+        ],
+        [
+          "train_medicine",
+          0.23
+        ],
+        [
+          "garden",
+          0.195
+        ],
+        [
+          "temple",
+          0.0
+        ]
+      ],
+      "risk": 0.0,
+      "ambition": 1.0,
+      "valid": {
+        "fitness": 23214.148323384477,
+        "mean_score": 23214.148323384477,
+        "mean_cold": 0
+      },
+      "details": {
+        "score": 23214.148323384477,
+        "cold": 0,
+        "event_cold": 0,
+        "natural_cold": 0,
+        "favor": 96.56376946250363,
+        "prestige": 6690.998418387156,
+        "trueHeart": 100,
+        "births": 2.25,
+        "secret_births": 0,
+        "silver": 18.75,
+        "silver_spent": 10765.151420454546,
+        "admin_spent": 2137.25,
+        "court_spent": 1630.0,
+        "family_spent": 1020.0,
+        "child_spent": 2606.7734375,
+        "gift_spent": 750.0,
+        "case_spent": 1792.5,
+        "event_spent": 828.6279829545456,
+        "plots": 10.125,
+        "rank_gain": 0,
+        "lover_events": 9.625,
+        "case_interventions": 53.875,
+        "court_loyalty": 99.625,
+        "family_office_level": 5,
+        "ambition_value": 88.0,
+        "tiger_tally": 0,
+        "power_investment": 0.0
+      }
+    },
+    "fushengrumeng": {
+      "alloc": [
+        [
+          "fortune",
+          30.3
+        ],
+        [
+          "appearance",
+          30.3
+        ],
+        [
+          "intrigue",
+          20.6
+        ],
+        [
+          "health",
+          13.7
+        ],
+        [
+          "medicine",
+          4.3
+        ],
+        [
+          "temperament",
+          0.0
+        ],
+        [
+          "politics",
+          0.0
+        ]
+      ],
+      "actions": [
+        [
+          "book",
+          0.921
+        ],
+        [
+          "plot",
+          0.824
+        ],
+        [
+          "train_intrigue",
+          0.497
+        ],
+        [
+          "train_medicine",
+          0.396
+        ],
+        [
+          "garden",
+          0.08
+        ],
+        [
+          "temple",
+          0.0
+        ]
+      ],
+      "risk": 0.26,
+      "ambition": 0.605,
+      "valid": {
+        "fitness": 17356.68126237924,
+        "mean_score": 17356.68126237924,
+        "mean_cold": 0
+      },
+      "details": {
+        "score": 17356.68126237924,
+        "cold": 0,
+        "event_cold": 0,
+        "natural_cold": 0,
+        "favor": 96.56944444444444,
+        "prestige": 4059.7838268724495,
+        "trueHeart": 100,
+        "births": 2.5,
+        "secret_births": 0.125,
+        "silver": 22.5,
+        "silver_spent": 7415.99090909091,
+        "admin_spent": 1470.25,
+        "court_spent": 680.0,
+        "family_spent": 525.0,
+        "child_spent": 2754.5295454545453,
+        "gift_spent": 665.1,
+        "case_spent": 1005.0,
+        "event_spent": 316.1113636363637,
+        "plots": 14,
+        "rank_gain": 11.25,
+        "lover_events": 8.75,
+        "case_interventions": 23.5,
+        "court_loyalty": 99.75,
+        "family_office_level": 1.625,
+        "ambition_value": 66.1808273797817,
+        "tiger_tally": 0,
+        "power_investment": 0.0
+      }
+    },
+    "yingluoyeting": {
+      "alloc": [
+        [
+          "intrigue",
+          50.6
+        ],
+        [
+          "temperament",
+          39.9
+        ],
+        [
+          "health",
+          0.0
+        ],
+        [
+          "fortune",
+          0.0
+        ],
+        [
+          "appearance",
+          0.0
+        ],
+        [
+          "medicine",
+          0.0
+        ],
+        [
+          "politics",
+          0.0
+        ]
+      ],
+      "actions": [
+        [
+          "book",
+          1.0
+        ],
+        [
+          "garden",
+          0.804
+        ],
+        [
+          "train_intrigue",
+          0.792
+        ],
+        [
+          "train_medicine",
+          0.263
+        ],
+        [
+          "temple",
+          0.0
+        ],
+        [
+          "plot",
+          0.0
+        ]
+      ],
+      "risk": 0.967,
+      "ambition": 0.823,
+      "valid": {
+        "fitness": 15162.028200203284,
+        "mean_score": 15190.028200203284,
+        "mean_cold": 0.875
+      },
+      "details": {
+        "score": 15190.028200203284,
+        "cold": 0.875,
+        "event_cold": 0.875,
+        "natural_cold": 0,
+        "favor": 94.76788611562048,
+        "prestige": 2773.3386625267744,
+        "trueHeart": 98.93750000000001,
+        "births": 1.125,
+        "secret_births": 0,
+        "silver": 11.25,
+        "silver_spent": 4276.650000000001,
+        "admin_spent": 900.975,
+        "court_spent": 543.75,
+        "family_spent": 390.0,
+        "child_spent": 999.2906250000001,
+        "gift_spent": 370.3796875,
+        "case_spent": 785.0,
+        "event_spent": 287.2546875000001,
+        "plots": 12.25,
+        "rank_gain": 17.25,
+        "lover_events": 3.25,
+        "case_interventions": 19.25,
+        "court_loyalty": 100,
+        "family_office_level": 0.5,
+        "ambition_value": 73.79568391695162,
+        "tiger_tally": 0,
+        "power_investment": 0.0
+      }
+    },
+    "chenyuansucuo": {
+      "alloc": [
+        [
+          "health",
+          21.2
+        ],
+        [
+          "appearance",
+          21.2
+        ],
+        [
+          "medicine",
+          21.2
+        ],
+        [
+          "fortune",
+          19.0
+        ],
+        [
+          "intrigue",
+          3.8
+        ],
+        [
+          "politics",
+          3.5
+        ],
+        [
+          "temperament",
+          3.0
+        ]
+      ],
+      "actions": [
+        [
+          "book",
+          1.0
+        ],
+        [
+          "temple",
+          1.0
+        ],
+        [
+          "train_intrigue",
+          1.0
+        ],
+        [
+          "plot",
+          0.692
+        ],
+        [
+          "train_medicine",
+          0.416
+        ],
+        [
+          "garden",
+          0.322
+        ]
+      ],
+      "risk": 0.266,
+      "ambition": 1.0,
+      "valid": {
+        "fitness": 19644.67163238168,
+        "mean_score": 19644.67163238168,
+        "mean_cold": 0
+      },
+      "details": {
+        "score": 19644.67163238168,
+        "cold": 0,
+        "event_cold": 0,
+        "natural_cold": 0,
+        "favor": 93.86730495293847,
+        "prestige": 3835.9876851953004,
+        "trueHeart": 92.41250000000001,
+        "births": 2,
+        "secret_births": 0,
+        "silver": 11.25,
+        "silver_spent": 8172.224431818182,
+        "admin_spent": 1580.625,
+        "court_spent": 1225.0,
+        "family_spent": 510.0,
+        "child_spent": 2001.6392045454545,
+        "gift_spent": 1165.0,
+        "case_spent": 1417.5,
+        "event_spent": 272.4602272727273,
+        "plots": 16.75,
+        "rank_gain": 5.375,
+        "lover_events": 4.875,
+        "case_interventions": 40,
+        "court_loyalty": 99.625,
+        "family_office_level": 4,
+        "ambition_value": 88.0,
+        "tiger_tally": 0,
+        "power_investment": 0.0
+      }
+    }
+  }
+}
