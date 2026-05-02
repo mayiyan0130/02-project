@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { ConcubineListView } from '../components/consorts/ConcubineListView';
+import { HaremPalaceView } from '../components/consorts/HaremPalaceView';
 import { PalaceDialogueBox } from '../components/dialogue/PalaceDialogueBox';
 import { PalaceStatusBar } from '../components/status/PalaceStatusBar';
 import { CHAMBER_ACTION_BUTTONS, CHAMBER_BOTTOM_TOOLS, CHAMBER_SIDEBAR_BUTTONS } from '../config/palaceUi';
+import { LOCATION_SCENE_BACKGROUNDS } from '../config/locationSceneBackgrounds';
 import { buildInitialBondProfile, BOND_INTERACTION_OPTIONS } from '../game/data/bondPresets';
 import { getRarityColor } from '../game/lib/bedchamberRuntime';
 import { requestRelationshipJudgementWithFallback } from '../game/lib/relationshipJudgeRuntime';
@@ -76,6 +78,7 @@ export function ChamberMainView() {
     time,
     selectedRoute,
     activeChamberPanel,
+    activeMapLocation,
     openChamberPanel,
     closeChamberPanel,
     applyStoryEffects,
@@ -90,6 +93,21 @@ export function ChamberMainView() {
   } = useGameFlowStore();
   const [dialogueText, setDialogueText] = useState('');
   const [bondBusy, setBondBusy] = useState(false);
+  const isHaremPanelActive = activeChamberPanel === 'harem';
+  const currentSceneLabel = isHaremPanelActive ? '后宫' : activeMapLocation ?? state.residenceName;
+  const currentSceneBackground = activeMapLocation ? LOCATION_SCENE_BACKGROUNDS[activeMapLocation] : undefined;
+  const chamberBackgroundStyle = useMemo<CSSProperties | undefined>(
+    () =>
+      currentSceneBackground
+        ? {
+            backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)), url("${currentSceneBackground}")`,
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: 'cover',
+          }
+        : undefined,
+    [currentSceneBackground],
+  );
 
   useEffect(() => {
     ensureBondProfile(state.routeId);
@@ -108,10 +126,20 @@ export function ChamberMainView() {
       return;
     }
 
+    if (activeMapLocation) {
+      setDialogueText(`娘娘，我们已到${activeMapLocation}。此处场景已切换为对应地点背景。`);
+      return;
+    }
+
+    if (isHaremPanelActive) {
+      setDialogueText('');
+      return;
+    }
+
     if (activeChamberPanel === 'main') {
       setDialogueText('');
     }
-  }, [activeChamberPanel, patchState, state.flags, state.residenceName]);
+  }, [activeChamberPanel, activeMapLocation, isHaremPanelActive, patchState, state.flags, state.residenceName]);
 
   const skillStats = useMemo(
     () =>
@@ -257,7 +285,7 @@ export function ChamberMainView() {
   return (
     <main className="chamber-main palace-stage-shell">
       <div className="chamber-main__frame">
-        <div className="chamber-main__background" />
+        <div className="chamber-main__background" style={chamberBackgroundStyle} />
         <div className="chamber-main__inner-panel" aria-hidden="true" />
         <PalaceStatusBar />
 
@@ -277,41 +305,47 @@ export function ChamberMainView() {
 
         <section className="chamber-main__title-bar" aria-label="玩家信息">
           <div className="chamber-main__title-chip">{`${hiddenStats.initialRank ?? '宫妃'} ${state.name}`}</div>
-          <div className="chamber-main__residence-chip">{state.residenceName}</div>
+          <div className="chamber-main__residence-chip">{currentSceneLabel}</div>
         </section>
 
-        <section className="chamber-main__portrait-stage" aria-label="玩家立绘">
-          {selectedRoute ? <img src={selectedRoute.portrait} alt={selectedRoute.label} className="chamber-main__portrait" /> : null}
-        </section>
+        {!isHaremPanelActive ? (
+          <>
+            <section className="chamber-main__portrait-stage" aria-label="玩家立绘">
+              {selectedRoute ? <img src={selectedRoute.portrait} alt={selectedRoute.label} className="chamber-main__portrait" /> : null}
+            </section>
 
-        <section className="chamber-main__skill-panel" aria-label="技能与行动">
-          <div className="chamber-main__skills">
-            {skillStats.map((skill) => (
-              <div key={skill.key} className="chamber-main__skill-item">
-                <span>{skill.label}</span>
-                <strong style={{ color: getRarityColor(skill.value, 100) }}>{skill.value}</strong>
+            <section className="chamber-main__skill-panel" aria-label="技能与行动">
+              <div className="chamber-main__skills">
+                {skillStats.map((skill) => (
+                  <div key={skill.key} className="chamber-main__skill-item">
+                    <span>{skill.label}</span>
+                    <strong style={{ color: getRarityColor(skill.value, 100) }}>{skill.value}</strong>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          <div className="chamber-main__action-grid">
-            {CHAMBER_ACTION_BUTTONS.map((action) => (
-              <button key={action.id} type="button" onClick={() => handleTrainingAction(action.id)}>
-                {action.label}
-              </button>
-            ))}
-          </div>
+              <div className="chamber-main__action-grid">
+                {CHAMBER_ACTION_BUTTONS.map((action) => (
+                  <button key={action.id} type="button" onClick={() => handleTrainingAction(action.id)}>
+                    {action.label}
+                  </button>
+                ))}
+              </div>
 
-          <div className="chamber-main__bottom-tools">
-            {CHAMBER_BOTTOM_TOOLS.map((tool) => (
-              <button key={tool} type="button" onClick={() => handleBottomTool(tool)}>
-                {tool}
-              </button>
-            ))}
-          </div>
-        </section>
+              <div className="chamber-main__bottom-tools">
+                {CHAMBER_BOTTOM_TOOLS.map((tool) => (
+                  <button key={tool} type="button" onClick={() => handleBottomTool(tool)}>
+                    {tool}
+                  </button>
+                ))}
+              </div>
+            </section>
+          </>
+        ) : null}
 
-        {activeChamberPanel === 'consorts' ? (
+        {activeChamberPanel === 'harem' ? (
+          <HaremPalaceView onClose={closeChamberPanel} />
+        ) : activeChamberPanel === 'consorts' ? (
           <ConcubineListView concubines={concubines} onClose={closeChamberPanel} />
         ) : activeChamberPanel === 'bond' ? (
           <section className="chamber-main__overlay-card chamber-main__overlay-card--bond" aria-label="情缘面板">
@@ -381,7 +415,7 @@ export function ChamberMainView() {
           </section>
         ) : null}
 
-        {dialogueText && activeChamberPanel !== 'consorts' ? (
+        {dialogueText && activeChamberPanel !== 'consorts' && activeChamberPanel !== 'harem' ? (
           <PalaceDialogueBox
             ariaLabel="寝殿对白"
             className="palace-dialogue-box--chamber"

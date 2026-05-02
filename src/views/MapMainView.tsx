@@ -15,7 +15,7 @@ export function MapMainView() {
     enterMainChamber,
   } = useGameFlowStore();
   const [guideStep, setGuideStep] = useState(0);
-  const [selectedHotspotId, setSelectedHotspotId] = useState<string | null>(null);
+  const [selectedHotspotId, setSelectedHotspotId] = useState<(typeof MAP_HOTSPOTS)[number]['id'] | null>(null);
   const guideActive = !state.flags.mapGuideFinished;
 
   const selectedHotspot = useMemo(
@@ -37,8 +37,10 @@ export function MapMainView() {
   }, [guideActive, guideStep, mapEventText, selectedHotspot]);
 
   const jumpToChamberPanel = (panelId: 'consorts' | 'stats' | 'chronicle' | 'bond' | 'main') => {
-    openChamberPanel(panelId);
     enterMainChamber();
+    if (panelId !== 'main') {
+      openChamberPanel(panelId);
+    }
   };
 
   const finishGuide = () => {
@@ -49,7 +51,6 @@ export function MapMainView() {
       },
     });
     setMapEventText('');
-    openChamberPanel('main');
     enterMainChamber();
   };
 
@@ -69,7 +70,7 @@ export function MapMainView() {
     }
   };
 
-  const handleHotspot = (hotspotId: string) => {
+  const handleHotspot = (hotspotId: (typeof MAP_HOTSPOTS)[number]['id']) => {
     if (guideActive) {
       setMapEventText('先把地图和入口认熟，待会儿回寝殿后，娘娘再随时外出。');
       return;
@@ -80,8 +81,16 @@ export function MapMainView() {
   const handleEnterHotspot = () => {
     if (!selectedHotspot) return;
     advanceTime(1);
-    setMapEventText(`你前往了${selectedHotspot.label}。${selectedHotspot.description}`);
     setSelectedHotspotId(null);
+    setMapEventText('');
+
+    if (selectedHotspot.id === '后宫') {
+      enterMainChamber();
+      openChamberPanel('harem');
+      return;
+    }
+
+    enterMainChamber(selectedHotspot.id);
   };
 
   return (

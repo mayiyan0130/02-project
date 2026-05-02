@@ -41,29 +41,29 @@ type GeneratedConcubineTemplate = {
   stats: ConcubineProfile['stats'];
 };
 
-const WOMEN_ASSET_EXT_BY_ID: Record<WomenPortraitId, 'jpg' | 'png'> = {
-  陈妙仪: 'jpg',
+const WOMEN_ASSET_EXT_BY_ID: Record<WomenPortraitId, 'png'> = {
+  陈妙仪: 'png',
   陈婉宁: 'png',
-  崔令蓉: 'jpg',
-  崔莺莺: 'jpg',
-  杜若蘅: 'jpg',
-  冯妙莲: 'jpg',
-  顾雨杏: 'jpg',
-  花棠: 'jpg',
+  崔令蓉: 'png',
+  崔莺莺: 'png',
+  杜若蘅: 'png',
+  冯妙莲: 'png',
+  顾雨杏: 'png',
+  花棠: 'png',
   江晚晚: 'png',
-  姜芷: 'jpg',
-  李若瑶: 'jpg',
-  连翘: 'jpg',
+  姜芷: 'png',
+  李若瑶: 'png',
+  连翘: 'png',
   柳仪芳: 'png',
-  年欣兰: 'jpg',
-  裴静姝: 'jpg',
-  容可儿: 'jpg',
+  年欣兰: 'png',
+  裴静姝: 'png',
+  容可儿: 'png',
   沈妙清: 'png',
-  水兰婷: 'jpg',
-  孙玉娥: 'jpg',
+  水兰婷: 'png',
+  孙玉娥: 'png',
   姚铃儿: 'png',
-  叶琳珊: 'jpg',
-  虞秋池: 'jpg',
+  叶琳珊: 'png',
+  虞秋池: 'png',
 };
 
 const rankWeightMap: Record<string, number> = {
@@ -87,6 +87,96 @@ const rankWeightMap: Record<string, number> = {
   庶人: 4,
 };
 
+const officialRankPaletteMap = {
+  sovereign: { rankColor: '#FF0800', nameColor: '#FF5C57', accentColor: '#FF9A96' },
+  high: { rankColor: '#E840B2', nameColor: '#EC67C2', accentColor: '#F3A0DA' },
+  middle: { rankColor: '#7371D8', nameColor: '#8D8AE3', accentColor: '#B3B1EE' },
+  low: { rankColor: '#70D1D7', nameColor: '#89DCE1', accentColor: '#B5ECEF' },
+  base: { rankColor: '#7C7B78', nameColor: '#989792', accentColor: '#C7C5C0' },
+} as const;
+
+const canonicalRanks = ['皇后', '皇贵妃', '贵妃', '淑妃', '德妃', '贤妃', '妃', '昭仪', '昭容', '婕妤', '嫔', '贵人', '美人', '才人', '宝林', '常在', '答应', '庶人'] as const;
+// The docs define health risk bands but do not give a dedicated panel illness cutoff.
+// Reuse the documented low-health band and surface it as the visible "有恙" state.
+const liveStatusIllHealthThreshold = 400;
+// Special NPCs and authority figures should never be treated as concubine-list members.
+const NON_CONCUBINE_NAMES = new Set(['布自游', '卢安平', '当一', '杜娘', '娇娇', '简宁', '连翘']);
+const NON_CONCUBINE_PATTERNS = [/太后/];
+
+const normalizeConcubineHealthValue = (health: number): number => (health > 100 ? health : health * 10);
+
+const getRosterIdentityTokens = (entity: { name: string; portraitId: string }): string[] =>
+  [String(entity.name ?? '').trim(), String(entity.portraitId ?? '').trim()].filter((token) => token.length > 0);
+
+const isConcubineRosterMember = (entity: { name: string; portraitId: string }): boolean =>
+  getRosterIdentityTokens(entity).every(
+    (token) => !NON_CONCUBINE_NAMES.has(token) && !NON_CONCUBINE_PATTERNS.some((pattern) => pattern.test(token)),
+  );
+
+const getCanonicalRankLabel = (label: string): string => {
+  const normalized = String(label ?? '').trim();
+  for (const rank of canonicalRanks) {
+    if (normalized === rank || normalized.endsWith(rank)) {
+      return rank;
+    }
+  }
+  return normalized;
+};
+
+const isConcubineIll = (consort: ConcubineProfile): boolean =>
+  consort.conditionFlags?.illness === true || normalizeConcubineHealthValue(consort.stats.health) <= liveStatusIllHealthThreshold;
+
+const getRankTierKey = (rankLabel: string): keyof typeof officialRankPaletteMap => {
+  const rank = getCanonicalRankLabel(rankLabel);
+  if (rank === '皇后' || rank === '皇贵妃') {
+    return 'sovereign';
+  }
+  if (['贵妃', '淑妃', '德妃', '贤妃', '妃'].includes(rank)) {
+    return 'high';
+  }
+  if (['昭仪', '昭容', '婕妤', '嫔'].includes(rank)) {
+    return 'middle';
+  }
+  if (['贵人', '美人', '才人', '宝林'].includes(rank)) {
+    return 'low';
+  }
+  return 'base';
+};
+
+export const getConcubineDisplayRankText = (consort: ConcubineProfile): string => {
+  if (consort.status === 'limbo') {
+    return '庶人';
+  }
+  if (consort.status === 'deceased') {
+    return consort.posthumousTitle ?? consort.rankLabel;
+  }
+  return consort.rankLabel;
+};
+
+export const getConcubineRankPalette = (
+  consort: ConcubineProfile,
+): { rankColor: string; nameColor: string; accentColor: string } =>
+  officialRankPaletteMap[getRankTierKey(getConcubineDisplayRankText(consort))];
+
+export const getConcubineConditionLabel = (consort: ConcubineProfile): string => {
+  if (consort.status === 'deceased') {
+    return '已逝';
+  }
+  if (consort.status === 'limbo') {
+    return '冷宫';
+  }
+  if (consort.conditionFlags?.pregnant) {
+    return '有孕';
+  }
+  if (consort.conditionFlags?.madness) {
+    return '疯癫';
+  }
+  if (isConcubineIll(consort)) {
+    return '有恙';
+  }
+  return '寻常';
+};
+
 const ROUTE_FIXED_CONSORTS: Record<RouteId, readonly ConcubineSeed[]> = {
   lanyinxuguo: [
     {
@@ -96,24 +186,24 @@ const ROUTE_FIXED_CONSORTS: Record<RouteId, readonly ConcubineSeed[]> = {
       rankLabel: '贵妃',
       status: 'live',
       residence: '昭阳宫主殿',
-      stateLabel: '盛宠',
+      stateLabel: '寻常',
       age: 19,
-      familyBackground: '镇北将门嫡女',
-      personality: '娇俏乖滑',
-      summary: '最擅在盛宠里藏锋，看似轻快，实则每一句都在探人的底。',
+      familyBackground: '三品文官嫡女',
+      personality: '骄纵傲慢',
+      summary: '和皇帝是青梅竹马的表兄妹，对玩家的后位始终不服，也最容易因争宠起醋意。',
       stats: {
         prestige: 90,
         favor: 84,
         familyInfluence: 88,
         health: 76,
         appearance: 92,
-        relationToPlayer: -18,
+        relationToPlayer: -20,
         childrenCount: 1,
         ambition: 78,
         stress: 24,
         intrigue: 81,
         temperament: 88,
-        affection: 44,
+        affection: 0,
         fortune: 55,
       },
     },
@@ -124,24 +214,24 @@ const ROUTE_FIXED_CONSORTS: Record<RouteId, readonly ConcubineSeed[]> = {
       rankLabel: '淑妃',
       status: 'live',
       residence: '长春宫主殿',
-      stateLabel: '得宠',
+      stateLabel: '寻常',
       age: 22,
-      familyBackground: '江南盐商义女',
-      personality: '温雅藏锋',
-      summary: '礼数周全，账目分明，最喜欢在安静处把恩怨算清。',
+      familyBackground: '四品文官庶女',
+      personality: '温柔知性',
+      summary: '曾是东宫旧人，表面温和周全，真实立场最难被人看透，对玩家暂时保持中立。',
       stats: {
         prestige: 82,
         favor: 70,
         familyInfluence: 72,
         health: 71,
         appearance: 84,
-        relationToPlayer: -8,
+        relationToPlayer: 10,
         childrenCount: 0,
         ambition: 66,
         stress: 30,
         intrigue: 73,
         temperament: 82,
-        affection: 36,
+        affection: 0,
         fortune: 58,
       },
     },
@@ -152,24 +242,24 @@ const ROUTE_FIXED_CONSORTS: Record<RouteId, readonly ConcubineSeed[]> = {
       rankLabel: '美人',
       status: 'live',
       residence: '玉清宫西偏殿',
-      stateLabel: '安稳',
+      stateLabel: '寻常',
       age: 18,
-      familyBackground: '江南清流嫡次女',
-      personality: '柔静识礼',
-      summary: '不爱争先，却很会审时度势，在后宫里总能给自己留余地。',
+      familyBackground: '商贾之女，原本是妙音堂宫女',
+      personality: '安静内敛',
+      summary: '长相酷似玩家，被皇帝宠幸后顺势稳住地位，对玩家始终恭敬感恩，不主动挑衅。',
       stats: {
         prestige: 64,
         favor: 42,
         familyInfluence: 62,
         health: 80,
         appearance: 79,
-        relationToPlayer: 26,
+        relationToPlayer: 40,
         childrenCount: 0,
         ambition: 32,
         stress: 18,
         intrigue: 48,
         temperament: 81,
-        affection: 18,
+        affection: 20,
         fortune: 66,
       },
     },
@@ -179,27 +269,27 @@ const ROUTE_FIXED_CONSORTS: Record<RouteId, readonly ConcubineSeed[]> = {
       routeScope: 'fushengrumeng',
       portraitId: '沈妙清',
       name: '沈妙清',
-      rankLabel: '昭仪',
+      rankLabel: '常在',
       status: 'live',
       residence: '披香殿主殿',
-      stateLabel: '得宠',
+      stateLabel: '寻常',
       age: 15,
-      familyBackground: '江南世家嫡幼女',
-      personality: '清灵敏锐',
-      summary: '年纪尚小，却比许多老人看得更快，最会从细枝末节里觅机会。',
+      familyBackground: '六品武将嫡女',
+      personality: '清冷',
+      summary: '因玩家而入宫的旧友，是浮生如梦路线最直接的情感锚点，也最容易被后宫裹挟。',
       stats: {
         prestige: 78,
         favor: 68,
         familyInfluence: 70,
         health: 74,
         appearance: 88,
-        relationToPlayer: 34,
+        relationToPlayer: 70,
         childrenCount: 0,
         ambition: 62,
         stress: 27,
         intrigue: 69,
         temperament: 87,
-        affection: 28,
+        affection: 60,
         fortune: 61,
       },
     },
@@ -210,7 +300,7 @@ const ROUTE_FIXED_CONSORTS: Record<RouteId, readonly ConcubineSeed[]> = {
       rankLabel: '贵妃',
       status: 'live',
       residence: '昭阳宫主殿',
-      stateLabel: '盛宠',
+      stateLabel: '寻常',
       age: 19,
       familyBackground: '镇北将门嫡女',
       personality: '娇俏乖滑',
@@ -238,7 +328,7 @@ const ROUTE_FIXED_CONSORTS: Record<RouteId, readonly ConcubineSeed[]> = {
       rankLabel: '婕妤',
       status: 'live',
       residence: '永宁宫东偏殿',
-      stateLabel: '安稳',
+      stateLabel: '寻常',
       age: 20,
       familyBackground: '京兆裴氏嫡次女',
       personality: '端谨疏淡',
@@ -265,27 +355,27 @@ const ROUTE_FIXED_CONSORTS: Record<RouteId, readonly ConcubineSeed[]> = {
       routeScope: 'yingluoyeting',
       portraitId: '陈婉宁',
       name: '陈婉宁',
-      rankLabel: '德妃',
+      rankLabel: '妃',
       status: 'live',
       residence: '昭华殿主殿',
-      stateLabel: '安稳',
+      stateLabel: '寻常',
       age: 20,
-      familyBackground: '外放巡抚嫡女',
-      personality: '温顺持衡',
-      summary: '不轻易露锋芒，却总能在两难之间给自己找出最稳的路。',
+      familyBackground: '二品文官庶女',
+      personality: '佛口蛇心伪善',
+      summary: '影落掖庭路线的核心对手与旧案枢纽，为自身利益不择手段，却也会在情与利之间摇摆。',
       stats: {
         prestige: 84,
         favor: 52,
         familyInfluence: 80,
         health: 82,
         appearance: 86,
-        relationToPlayer: 10,
+        relationToPlayer: 0,
         childrenCount: 1,
         ambition: 54,
         stress: 25,
         intrigue: 64,
         temperament: 88,
-        affection: 34,
+        affection: 0,
         fortune: 63,
       },
     },
@@ -296,7 +386,7 @@ const ROUTE_FIXED_CONSORTS: Record<RouteId, readonly ConcubineSeed[]> = {
       rankLabel: '嫔',
       status: 'live',
       residence: '永和宫西偏殿',
-      stateLabel: '得宠',
+      stateLabel: '寻常',
       age: 18,
       familyBackground: '武门旁支之女',
       personality: '明艳爽利',
@@ -324,7 +414,7 @@ const ROUTE_FIXED_CONSORTS: Record<RouteId, readonly ConcubineSeed[]> = {
       rankLabel: '贵人',
       status: 'live',
       residence: '临华殿东偏殿',
-      stateLabel: '避锋',
+      stateLabel: '寻常',
       age: 17,
       familyBackground: '商贾义女',
       personality: '甜软机敏',
@@ -354,7 +444,7 @@ const ROUTE_FIXED_CONSORTS: Record<RouteId, readonly ConcubineSeed[]> = {
       rankLabel: '嫔',
       status: 'live',
       residence: '启祥宫主殿',
-      stateLabel: '安稳',
+      stateLabel: '寻常',
       age: 21,
       familyBackground: '陇右世家旁支嫡女',
       personality: '冷静沉着',
@@ -382,7 +472,7 @@ const ROUTE_FIXED_CONSORTS: Record<RouteId, readonly ConcubineSeed[]> = {
       rankLabel: '婕妤',
       status: 'live',
       residence: '钟粹宫东偏殿',
-      stateLabel: '避锋',
+      stateLabel: '寻常',
       age: 19,
       familyBackground: '边镇武家庶女',
       personality: '克制隐忍',
@@ -410,7 +500,7 @@ const ROUTE_FIXED_CONSORTS: Record<RouteId, readonly ConcubineSeed[]> = {
       rankLabel: '美人',
       status: 'live',
       residence: '永和宫西偏殿',
-      stateLabel: '安稳',
+      stateLabel: '寻常',
       age: 18,
       familyBackground: '武门旁支之女',
       personality: '明艳爽利',
@@ -442,7 +532,7 @@ const SPECIAL_START_CONSORTS: readonly ConcubineSeed[] = [
     rankLabel: '庶人',
     status: 'limbo',
     residence: '冷宫北院',
-    stateLabel: '幽居',
+    stateLabel: '冷宫',
     age: 21,
     familyBackground: '清流寒门女',
     personality: '寡言清醒',
@@ -470,7 +560,7 @@ const SPECIAL_START_CONSORTS: readonly ConcubineSeed[] = [
     rankLabel: '庶人',
     status: 'limbo',
     residence: '冷宫西偏院',
-    stateLabel: '禁足',
+    stateLabel: '冷宫',
     age: 23,
     familyBackground: '罪臣家眷',
     personality: '偏执刚烈',
@@ -499,7 +589,7 @@ const SPECIAL_START_CONSORTS: readonly ConcubineSeed[] = [
     posthumousTitle: '悼嫔',
     status: 'deceased',
     residence: '旧居披香殿',
-    stateLabel: '病逝',
+    stateLabel: '已逝',
     age: 20,
     familyBackground: '太医院世家女',
     personality: '温柔敏慧',
@@ -806,25 +896,24 @@ const shuffle = <T,>(items: readonly T[], random: () => number): T[] => {
   return cloned;
 };
 
-const resolveGeneratedStateLabel = (favor: number): string => {
-  if (favor >= 70) return '得宠';
-  if (favor >= 46) return '安稳';
-  if (favor >= 30) return '观望';
-  return '避锋';
-};
-
 const createConcubineFromSeed = (
   seed: ConcubineSeed,
   source: ConcubineProfile['source'],
   idPrefix: string,
   index: number,
-): ConcubineProfile => ({
-  ...seed,
-  id: `${idPrefix}-${seed.portraitId}-${index}`,
-  source,
-  allies: seed.allies ?? [],
-  rivals: seed.rivals ?? [],
-});
+): ConcubineProfile => {
+  const consort: ConcubineProfile = {
+    ...seed,
+    id: `${idPrefix}-${seed.portraitId}-${index}`,
+    source,
+    allies: seed.allies ?? [],
+    rivals: seed.rivals ?? [],
+  };
+  return {
+    ...consort,
+    stateLabel: getConcubineConditionLabel(consort),
+  };
+};
 
 const createGeneratedConcubine = (
   template: GeneratedConcubineTemplate,
@@ -841,8 +930,7 @@ const createGeneratedConcubine = (
   const favor = jitterStat(template.stats.favor, random, 10);
   const childrenCount =
     template.stats.childrenCount > 0 ? clamp(template.stats.childrenCount + Math.round(random() - 0.45), 0, 3) : 0;
-
-  return {
+  const consort: ConcubineProfile = {
     id: `generated-${routeId}-${template.portraitId}-${index}`,
     routeScope: routeId,
     portraitId: template.portraitId,
@@ -850,7 +938,7 @@ const createGeneratedConcubine = (
     rankLabel,
     status: 'live',
     residence: pickOne(template.possibleResidences, random),
-    stateLabel: resolveGeneratedStateLabel(favor),
+    stateLabel: '寻常',
     age,
     familyBackground: template.familyBackground,
     personality: template.personality,
@@ -873,6 +961,11 @@ const createGeneratedConcubine = (
     },
     allies: [],
     rivals: [],
+  };
+
+  return {
+    ...consort,
+    stateLabel: getConcubineConditionLabel(consort),
   };
 };
 
@@ -908,17 +1001,24 @@ const attachRelations = (roster: ConcubineProfile[]): ConcubineProfile[] => {
   });
 };
 
-const normalizeCustomConsort = (consort: ConcubineProfile, index: number): ConcubineProfile => ({
-  ...consort,
-  id: consort.id || `custom-${consort.portraitId}-${index}`,
-  source: 'custom',
-  status: consort.status ?? 'live',
-  stateLabel: consort.stateLabel || (consort.status === 'deceased' ? '已逝' : consort.status === 'limbo' ? '幽居' : '安稳'),
-  allies: consort.allies ?? [],
-  rivals: consort.rivals ?? [],
-  isCustomConsort: true,
-  customSource: consort.customSource ?? 'player',
-});
+const normalizeCustomConsort = (consort: ConcubineProfile, index: number): ConcubineProfile => {
+  const normalized: ConcubineProfile = {
+    ...consort,
+    id: consort.id || `custom-${consort.portraitId}-${index}`,
+    source: 'custom',
+    status: consort.status ?? 'live',
+    stateLabel: consort.stateLabel || '寻常',
+    allies: consort.allies ?? [],
+    rivals: consort.rivals ?? [],
+    isCustomConsort: true,
+    customSource: consort.customSource ?? 'player',
+  };
+
+  return {
+    ...normalized,
+    stateLabel: getConcubineConditionLabel(normalized),
+  };
+};
 
 export const getConcubinePortraitPath = (portraitId: string): string => {
   const ext = WOMEN_ASSET_EXT_BY_ID[portraitId as WomenPortraitId] ?? 'jpg';
@@ -926,13 +1026,7 @@ export const getConcubinePortraitPath = (portraitId: string): string => {
 };
 
 export const getConcubineListLabel = (consort: ConcubineProfile): string => {
-  if (consort.status === 'limbo') {
-    return `庶人 ${consort.name}`;
-  }
-  if (consort.status === 'deceased') {
-    return `${consort.posthumousTitle ?? consort.rankLabel} ${consort.name}`;
-  }
-  return `${consort.rankLabel} ${consort.name}`;
+  return `${getConcubineDisplayRankText(consort)} ${consort.name}`;
 };
 
 export const getConcubineSortWeight = (consort: ConcubineProfile): number => {
@@ -942,7 +1036,7 @@ export const getConcubineSortWeight = (consort: ConcubineProfile): number => {
   if (consort.status === 'limbo') {
     return consort.stats.intrigue;
   }
-  return (rankWeightMap[consort.rankLabel] ?? 0) * 100 + consort.stats.favor;
+  return (rankWeightMap[getCanonicalRankLabel(consort.rankLabel)] ?? 0) * 100 + consort.stats.favor;
 };
 
 export const buildInitialConcubineRoster = (
@@ -954,16 +1048,19 @@ export const buildInitialConcubineRoster = (
   const specials = SPECIAL_START_CONSORTS.map((seed, index) => createConcubineFromSeed(seed, 'fixed', 'special', index));
   const usedPortraitIds = new Set([...fixed, ...specials].map((item) => item.portraitId));
   const generatedTemplates = shuffle(
-    GENERATED_CONSORT_TEMPLATES.filter((template) => !usedPortraitIds.has(template.portraitId)),
+    GENERATED_CONSORT_TEMPLATES.filter(
+      (template) => !usedPortraitIds.has(template.portraitId) && isConcubineRosterMember(template),
+    ),
     random,
   ).slice(0, GENERATED_CONSORT_COUNT);
 
   const generated = generatedTemplates.map((template, index) => createGeneratedConcubine(template, routeId, random, index));
   const availableCustomConsorts = customConsorts
     .filter((consort) => !consort.routeScope || consort.routeScope === 'all' || consort.routeScope === routeId)
+    .filter((consort) => isConcubineRosterMember(consort))
     .map((consort, index) => normalizeCustomConsort(consort, index));
 
-  return attachRelations([...fixed, ...specials, ...generated, ...availableCustomConsorts]);
+  return attachRelations([...fixed, ...specials, ...generated, ...availableCustomConsorts].filter(isConcubineRosterMember));
 };
 
 export const sortConcubinesByStatus = (
@@ -971,5 +1068,5 @@ export const sortConcubinesByStatus = (
   status: ConcubineStatus,
 ): ConcubineProfile[] =>
   [...concubines]
-    .filter((consort) => consort.status === status)
+    .filter((consort) => consort.status === status && isConcubineRosterMember(consort))
     .sort((left, right) => getConcubineSortWeight(right) - getConcubineSortWeight(left));

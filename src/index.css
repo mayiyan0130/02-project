@@ -2494,7 +2494,9 @@ button {
 
 .concubine-list-view__tab,
 .concubine-list-view__back,
-.concubine-list-view__visit {
+.concubine-list-view__visit,
+.concubine-list-view__social-toggle,
+.concubine-list-view__social-header button {
   border: 1px solid rgba(190, 146, 153, 0.58);
   border-radius: 16px;
   background: rgba(255, 243, 245, 0.95);
@@ -2516,7 +2518,10 @@ button {
 .concubine-list-view__tab.is-active,
 .concubine-list-view__tab:hover,
 .concubine-list-view__back:hover,
-.concubine-list-view__visit:hover {
+.concubine-list-view__visit:hover,
+.concubine-list-view__social-toggle:hover,
+.concubine-list-view__social-toggle.is-active,
+.concubine-list-view__social-header button:hover {
   transform: translateY(-2px);
   background: rgba(248, 227, 231, 0.98);
   box-shadow: 0 14px 22px rgba(100, 52, 62, 0.14);
@@ -2569,11 +2574,23 @@ button {
 }
 
 .concubine-list-view__entry-label {
-  display: block;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
   font-family: 'STKaiti', 'KaiTi', serif;
-  font-size: 26px;
+  line-height: 1.28;
+  white-space: nowrap;
+}
+
+.concubine-list-view__entry-rank {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.concubine-list-view__entry-name {
+  font-size: 24px;
   font-weight: 700;
-  line-height: 1.38;
 }
 
 .concubine-list-view__back {
@@ -2606,134 +2623,276 @@ button {
   position: absolute;
   left: 33.2%;
   top: 5.8%;
-  right: 14.4%;
+  right: calc(var(--palace-status-width) - 12px);
   display: flex;
-  gap: 18px;
+  align-items: center;
+  gap: 12px;
   z-index: 3;
 }
 
 .concubine-list-view__chip {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  min-height: 64px;
-  padding: 0 28px;
+  justify-content: flex-start;
+  gap: 10px;
+  min-width: 0;
+  min-height: 56px;
+  padding: 0 20px;
   border-radius: 16px;
   background: rgba(243, 199, 192, 0.92);
   box-shadow: 0 12px 22px rgba(95, 53, 64, 0.12);
   color: #4c1b20;
   font-family: 'STKaiti', 'KaiTi', serif;
-  font-size: 30px;
+  font-size: 23px;
   font-weight: 700;
   text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .concubine-list-view__chip--primary {
-  min-width: 270px;
-  justify-content: flex-start;
-  padding: 0 32px;
+  flex: 1 1 250px;
+  min-width: 208px;
+  padding: 0 24px;
+}
+
+.concubine-list-view__chip--secondary {
+  flex: 0 0 auto;
+  font-size: 21px;
+}
+
+.concubine-list-view__chip-rank {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.concubine-list-view__chip-name {
+  font-size: 27px;
+  font-weight: 700;
+}
+
+.concubine-list-view__action-group {
+  position: absolute;
+  top: 19.8%;
+  right: 13.8%;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  z-index: 4;
 }
 
 .concubine-list-view__visit {
-  position: absolute;
-  top: 19.8%;
-  right: 16%;
-  min-width: 152px;
-  min-height: 60px;
-  padding: 0 22px;
-  font-size: 28px;
+  min-width: 98px;
+  min-height: 42px;
+  padding: 0 16px;
+  font-size: 18px;
   font-weight: 700;
   box-shadow: 0 10px 16px rgba(100, 52, 62, 0.12);
-  z-index: 4;
 }
 
-.concubine-list-view__metric-columns {
+.concubine-list-view__social-toggle {
+  min-width: 76px;
+  min-height: 38px;
+  padding: 0 14px;
+  font-size: 17px;
+  font-weight: 700;
+  border-radius: 14px;
+  box-shadow: 0 10px 16px rgba(100, 52, 62, 0.12);
+}
+
+.concubine-list-view__metric-board {
   position: absolute;
   left: 34.5%;
-  top: 24.6%;
-  width: 34.6%;
+  top: calc(24.1% - 30px);
+  width: 34.9%;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0 36px;
+  gap: 6px;
   z-index: 4;
 }
 
-.concubine-list-view__metric-column {
+.concubine-list-view__metric-row-group {
   display: grid;
-  gap: 12px;
-  align-content: start;
+  gap: 8px;
 }
 
-.concubine-list-view__metric-row {
+.concubine-list-view__metric-row-group--1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.concubine-list-view__metric-row-group--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.concubine-list-view__metric-row-group--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.concubine-list-view__metric-card {
+  min-width: 0;
+  min-height: 46px;
+  padding: 6px 8px 8px;
+  border-radius: 14px;
+  background: rgba(255, 248, 243, 0.82);
+  box-shadow: inset 0 0 0 1px rgba(153, 109, 95, 0.14);
+  display: grid;
+  gap: 4px;
+}
+
+.concubine-list-view__metric-card.is-text-only {
+  min-height: 40px;
+}
+
+.concubine-list-view__metric-copy {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 14px;
-  min-height: 40px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(114, 74, 80, 0.12);
+  gap: 8px;
 }
 
-.concubine-list-view__metric-row span,
-.concubine-list-view__metric-row strong {
+.concubine-list-view__metric-copy span,
+.concubine-list-view__metric-copy strong {
   color: #4d1d23;
   font-family: 'STKaiti', 'KaiTi', serif;
+  white-space: nowrap;
 }
 
-.concubine-list-view__metric-row span {
-  font-size: 25px;
+.concubine-list-view__metric-copy span {
+  font-size: 18px;
 }
 
-.concubine-list-view__metric-row strong {
-  font-size: 23px;
+.concubine-list-view__metric-copy strong {
+  font-size: 17px;
   font-weight: 700;
   text-align: right;
 }
 
-.concubine-list-view__relations {
+.concubine-list-view__metric-meter {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(143, 102, 105, 0.16);
+  overflow: hidden;
+}
+
+.concubine-list-view__metric-meter.is-signed::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: 50%;
+  width: 1px;
+  background: rgba(109, 74, 80, 0.3);
+}
+
+.concubine-list-view__metric-meter-fill {
+  height: 100%;
+  width: var(--metric-level, 0%);
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.22), var(--metric-fill, #be6f8d));
+}
+
+.concubine-list-view__social-panel,
+.concubine-list-view__note {
   position: absolute;
   left: 34.5%;
   right: 32.4%;
-  top: 69%;
-  display: grid;
-  gap: 14px;
+  border-radius: 18px;
+  background: rgba(255, 248, 243, 0.82);
+  box-shadow: inset 0 0 0 1px rgba(153, 109, 95, 0.16);
   z-index: 4;
 }
 
-.concubine-list-view__relation-block {
-  padding: 14px 16px;
-  border-radius: 18px;
-  background: rgba(255, 248, 243, 0.76);
-  box-shadow: inset 0 0 0 1px rgba(153, 109, 95, 0.16);
+.concubine-list-view__social-panel {
+  bottom: 9.4%;
+  min-height: 124px;
+  padding: 10px 12px;
+  background: #fffaf5;
+  display: grid;
+  gap: 8px;
 }
 
-.concubine-list-view__relation-block h3 {
-  margin: 0 0 8px;
+.concubine-list-view__social-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.concubine-list-view__social-header h3 {
+  margin: 0;
   color: #5a2026;
   font-family: 'STKaiti', 'KaiTi', serif;
-  font-size: 24px;
+  font-size: 19px;
 }
 
-.concubine-list-view__relation-block p,
-.concubine-list-view__note {
-  margin: 0;
+.concubine-list-view__social-header button {
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 14px;
+  box-shadow: 0 8px 14px rgba(100, 52, 62, 0.1);
+}
+
+.concubine-list-view__social-group {
+  display: grid;
+  gap: 6px;
+}
+
+.concubine-list-view__social-group > span {
+  color: #5a2026;
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.concubine-list-view__social-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.concubine-list-view__social-pill,
+.concubine-list-view__social-empty {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
   color: #5d252c;
   font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: 14px;
 }
 
-.concubine-list-view__relation-block p {
-  font-size: 19px;
-  line-height: 1.6;
+.concubine-list-view__social-pill.is-ally {
+  background: rgba(134, 190, 173, 0.26);
+  box-shadow: inset 0 0 0 1px rgba(94, 156, 138, 0.22);
+}
+
+.concubine-list-view__social-pill.is-rival {
+  background: rgba(219, 150, 169, 0.24);
+  box-shadow: inset 0 0 0 1px rgba(184, 92, 122, 0.22);
+}
+
+.concubine-list-view__social-empty {
+  padding-left: 0;
+  color: rgba(93, 37, 44, 0.72);
 }
 
 .concubine-list-view__note {
-  position: absolute;
-  left: 34.5%;
-  right: 32.4%;
   bottom: 9.8%;
-  font-size: 17px;
-  line-height: 1.62;
-  z-index: 4;
+  min-height: 64px;
+  margin: 0;
+  padding: 10px 12px;
+  color: #5d252c;
+  font-family: 'STKaiti', 'KaiTi', serif;
+  font-size: 14px;
+  line-height: 1.48;
+}
+
+.concubine-list-view__note.is-hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .concubine-list-view__portrait-stage {
@@ -2768,8 +2927,8 @@ button {
   height: 100%;
   object-fit: contain;
   object-position: center bottom;
-  mix-blend-mode: multiply;
-  filter: saturate(1.05) contrast(1.02) drop-shadow(0 16px 18px rgba(60, 34, 37, 0.18));
+  mix-blend-mode: normal;
+  filter: saturate(1.04) contrast(1.02) drop-shadow(0 16px 18px rgba(60, 34, 37, 0.18));
 }
 
 .palace-dialogue--chamber {
@@ -2920,6 +3079,14 @@ button {
   }
 
   .concubine-list-view__entry-label {
+    gap: 6px;
+  }
+
+  .concubine-list-view__entry-rank {
+    font-size: 16px;
+  }
+
+  .concubine-list-view__entry-name {
     font-size: 18px;
   }
 
@@ -2930,76 +3097,123 @@ button {
 
   .concubine-list-view__chips {
     left: 34.2%;
-    right: 8%;
+    right: calc(var(--palace-status-width) - 48px);
     top: 7%;
     gap: 10px;
     flex-wrap: wrap;
   }
 
   .concubine-list-view__chip {
-    min-height: 46px;
-    padding: 0 18px;
-    font-size: 20px;
+    min-height: 42px;
+    padding: 0 14px;
+    gap: 6px;
+    font-size: 16px;
   }
 
   .concubine-list-view__chip--primary {
-    min-width: 176px;
-    padding: 0 20px;
+    flex-basis: 100%;
+    min-width: 0;
+    padding: 0 16px;
+  }
+
+  .concubine-list-view__chip-rank {
+    font-size: 18px;
+  }
+
+  .concubine-list-view__chip-name {
+    font-size: 20px;
+  }
+
+  .concubine-list-view__action-group {
+    top: 20%;
+    right: 8.6%;
+    gap: 6px;
   }
 
   .concubine-list-view__visit {
-    top: 20%;
-    right: 9.4%;
-    min-width: 96px;
-    min-height: 44px;
-    font-size: 18px;
-  }
-
-  .concubine-list-view__metric-columns {
-    left: 35%;
-    top: 24%;
-    width: 37%;
-    gap: 0 18px;
-  }
-
-  .concubine-list-view__metric-row {
+    min-width: 70px;
     min-height: 32px;
-    gap: 10px;
+    padding: 0 11px;
+    font-size: 13px;
   }
 
-  .concubine-list-view__metric-row span {
-    font-size: 18px;
+  .concubine-list-view__social-toggle {
+    min-width: 58px;
+    min-height: 30px;
+    padding: 0 10px;
+    font-size: 12px;
   }
 
-  .concubine-list-view__metric-row strong {
-    font-size: 17px;
+  .concubine-list-view__metric-board {
+    left: 35%;
+    top: calc(24.6% - 30px);
+    width: 37%;
+    gap: 4px;
   }
 
-  .concubine-list-view__relations {
+  .concubine-list-view__metric-row-group {
+    gap: 4px;
+  }
+
+  .concubine-list-view__metric-card {
+    min-height: 38px;
+    padding: 4px 6px 6px;
+  }
+
+  .concubine-list-view__metric-card.is-text-only {
+    min-height: 32px;
+  }
+
+  .concubine-list-view__metric-copy span {
+    font-size: 13px;
+  }
+
+  .concubine-list-view__metric-copy strong {
+    font-size: 12px;
+  }
+
+  .concubine-list-view__metric-meter {
+    height: 5px;
+  }
+
+  .concubine-list-view__social-panel {
     left: 35%;
     right: 31%;
-    top: 70%;
-    gap: 10px;
+    bottom: 8.4%;
+    min-height: 92px;
+    padding: 7px 9px;
+    gap: 5px;
   }
 
-  .concubine-list-view__relation-block {
-    padding: 10px 12px;
-  }
-
-  .concubine-list-view__relation-block h3 {
-    font-size: 18px;
-  }
-
-  .concubine-list-view__relation-block p {
+  .concubine-list-view__social-header h3 {
     font-size: 14px;
+  }
+
+  .concubine-list-view__social-header button {
+    min-height: 24px;
+    padding: 0 8px;
+    font-size: 11px;
+  }
+
+  .concubine-list-view__social-group > span {
+    font-size: 12px;
+  }
+
+  .concubine-list-view__social-pill,
+  .concubine-list-view__social-empty {
+    min-height: 22px;
+    padding: 2px 7px;
+    font-size: 11px;
   }
 
   .concubine-list-view__note {
     left: 35%;
     right: 31%;
     bottom: 8%;
-    font-size: 13px;
-    line-height: 1.45;
+    min-height: 56px;
+    padding: 7px 9px;
+    font-size: 11px;
+    line-height: 1.4;
   }
 
   .concubine-list-view__portrait-stage {
@@ -3474,5 +3688,312 @@ button {
 
   .palace-dialogue-box__option small {
     font-size: 11px;
+  }
+}
+
+.harem-palace-view {
+  position: absolute;
+  left: 108px;
+  right: 34px;
+  top: 104px;
+  bottom: 34px;
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow:
+    0 24px 40px rgba(79, 41, 44, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.46);
+  z-index: 18;
+  isolation: isolate;
+}
+
+.harem-palace-view__veil {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 251, 245, 0.16), rgba(255, 251, 245, 0.1)),
+    radial-gradient(circle at top left, rgba(255, 233, 242, 0.3), rgba(255, 233, 242, 0) 34%);
+  backdrop-filter: blur(2px);
+}
+
+.harem-palace-view__header,
+.harem-palace-view__footer,
+.harem-palace-view__grid,
+.harem-palace-view__hall-layout {
+  position: relative;
+  z-index: 1;
+}
+
+.harem-palace-view__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px 32px 0;
+}
+
+.harem-palace-view__heading {
+  display: grid;
+  gap: 6px;
+}
+
+.harem-palace-view__heading span,
+.harem-palace-view__heading p,
+.harem-palace-view__heading h2,
+.harem-palace-view__footer p,
+.harem-palace-view__palace-button span,
+.harem-palace-view__hall-button strong,
+.harem-palace-view__hall-button span,
+.harem-palace-view__utility-button {
+  color: #5c2527;
+  font-family: 'STKaiti', 'KaiTi', serif;
+}
+
+.harem-palace-view__heading span {
+  font-size: 18px;
+  letter-spacing: 0.12em;
+}
+
+.harem-palace-view__heading h2 {
+  margin: 0;
+  font-size: 42px;
+  letter-spacing: 0.08em;
+}
+
+.harem-palace-view__heading p {
+  margin: 0;
+  font-size: 18px;
+}
+
+.harem-palace-view__header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.harem-palace-view__utility-button {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 14px;
+  background: rgba(255, 248, 239, 0.92);
+  border: 1px solid rgba(194, 154, 127, 0.35);
+  box-shadow:
+    0 10px 18px rgba(111, 65, 61, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+  font-size: 18px;
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.harem-palace-view__utility-button.is-secondary {
+  background: rgba(255, 242, 234, 0.92);
+}
+
+.harem-palace-view__utility-button:hover,
+.harem-palace-view__hall-button:hover,
+.harem-palace-view__palace-button:hover,
+.harem-palace-view__hall-button.is-active {
+  transform: translateY(-2px);
+  box-shadow:
+    0 14px 22px rgba(111, 65, 61, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.84);
+}
+
+.harem-palace-view__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px 24px;
+  width: min(100%, 760px);
+  margin: 56px auto 0;
+  padding: 0 20px;
+}
+
+.harem-palace-view__palace-button,
+.harem-palace-view__hall-button {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(251, 245, 235, 0.95), rgba(242, 231, 214, 0.93));
+  border: 1px solid rgba(191, 154, 128, 0.32);
+  box-shadow:
+    0 12px 18px rgba(111, 65, 61, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.74);
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.harem-palace-view__palace-button::before,
+.harem-palace-view__hall-button::before {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border-radius: 12px;
+  border: 1px solid rgba(156, 122, 102, 0.12);
+  pointer-events: none;
+}
+
+.harem-palace-view__palace-button {
+  min-height: 96px;
+  padding: 18px 12px;
+}
+
+.harem-palace-view__palace-button span {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-align: center;
+}
+
+.harem-palace-view__hall-layout {
+  display: grid;
+  gap: 26px;
+  width: min(100%, 920px);
+  margin: 42px auto 0;
+  padding: 0 24px;
+}
+
+.harem-palace-view__hall-row {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+}
+
+.harem-palace-view__hall-row--main .harem-palace-view__hall-button {
+  width: min(100%, 320px);
+}
+
+.harem-palace-view__hall-row--side .harem-palace-view__hall-button {
+  width: min(100%, 280px);
+}
+
+.harem-palace-view__hall-row--wing .harem-palace-view__hall-button {
+  width: min(100%, 240px);
+}
+
+.harem-palace-view__hall-button {
+  min-height: 104px;
+  padding: 18px 16px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 6px;
+}
+
+.harem-palace-view__hall-button strong {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.harem-palace-view__hall-button span {
+  font-size: 18px;
+  letter-spacing: 0.12em;
+}
+
+.harem-palace-view__footer {
+  position: absolute;
+  left: 32px;
+  right: 32px;
+  bottom: 24px;
+  min-height: 62px;
+  padding: 14px 18px;
+  border-radius: 18px;
+  background: rgba(255, 249, 243, 0.86);
+  box-shadow:
+    0 12px 22px rgba(111, 65, 61, 0.1),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+}
+
+.harem-palace-view__footer p {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+@media (max-width: 960px) {
+  .harem-palace-view {
+    left: 88px;
+    right: 14px;
+    top: 82px;
+    bottom: 18px;
+  }
+
+  .harem-palace-view__header {
+    flex-direction: column;
+    gap: 16px;
+    padding: 20px 20px 0;
+  }
+
+  .harem-palace-view__heading span {
+    font-size: 15px;
+  }
+
+  .harem-palace-view__heading h2 {
+    font-size: 30px;
+  }
+
+  .harem-palace-view__heading p {
+    font-size: 15px;
+  }
+
+  .harem-palace-view__header-actions {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .harem-palace-view__utility-button {
+    min-height: 38px;
+    padding: 0 14px;
+    font-size: 15px;
+  }
+
+  .harem-palace-view__grid {
+    gap: 14px;
+    margin-top: 26px;
+    padding: 0 14px;
+  }
+
+  .harem-palace-view__palace-button {
+    min-height: 72px;
+    padding: 12px 6px;
+  }
+
+  .harem-palace-view__palace-button span {
+    font-size: 19px;
+  }
+
+  .harem-palace-view__hall-layout {
+    gap: 14px;
+    margin-top: 22px;
+    padding: 0 14px;
+  }
+
+  .harem-palace-view__hall-row {
+    gap: 12px;
+  }
+
+  .harem-palace-view__hall-button {
+    min-height: 82px;
+    padding: 10px 8px;
+  }
+
+  .harem-palace-view__hall-button strong {
+    font-size: 17px;
+  }
+
+  .harem-palace-view__hall-button span {
+    font-size: 13px;
+  }
+
+  .harem-palace-view__footer {
+    left: 18px;
+    right: 18px;
+    bottom: 14px;
+    min-height: 48px;
+    padding: 10px 12px;
+  }
+
+  .harem-palace-view__footer p {
+    font-size: 14px;
   }
 }

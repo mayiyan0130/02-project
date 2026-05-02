@@ -1,5 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
-import { getConcubineListLabel, getConcubinePortraitPath, sortConcubinesByStatus } from '../../game/data/concubineRoster';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import {
+  getConcubineConditionLabel,
+  getConcubineDisplayRankText,
+  getConcubinePortraitPath,
+  getConcubineRankPalette,
+  sortConcubinesByStatus,
+} from '../../game/data/concubineRoster';
 import type { ConcubineProfile, ConcubineStatus } from '../../game/types';
 
 const statusTabs: Array<{ id: ConcubineStatus; label: string }> = [
@@ -7,27 +13,6 @@ const statusTabs: Array<{ id: ConcubineStatus; label: string }> = [
   { id: 'limbo', label: '冷宫' },
   { id: 'deceased', label: '已逝' },
 ];
-
-const titleColorMap: Record<string, string> = {
-  皇后: '#d63a3a',
-  皇贵妃: '#c647a7',
-  贵妃: '#be4ab0',
-  淑妃: '#6a65d6',
-  德妃: '#4f9ed2',
-  贤妃: '#55a4cb',
-  妃: '#8e58b7',
-  昭仪: '#c058a0',
-  昭容: '#7a63c7',
-  婕妤: '#5c7ad7',
-  嫔: '#3aa1c5',
-  贵人: '#9a5eb2',
-  美人: '#6b7fd7',
-  才人: '#bf6697',
-  宝林: '#8a7996',
-  常在: '#8f7078',
-  答应: '#8a747d',
-  庶人: '#7b6d75',
-};
 
 const sourceLabelMap: Record<ConcubineProfile['source'], string> = {
   fixed: '固定开局',
@@ -47,6 +32,152 @@ const getVisitLabel = (status: ConcubineStatus): string => {
   return '拜访';
 };
 
+const clampPercent = (value: number): number => Math.min(100, Math.max(0, value));
+
+const getMetricPercent = (value: number, range: readonly [number, number]): number => {
+  const [min, max] = range;
+  if (max <= min) {
+    return 0;
+  }
+  return clampPercent(((value - min) / (max - min)) * 100);
+};
+
+interface MetricDescriptor {
+  key: string;
+  label: string;
+  display: string;
+  numericValue?: number;
+  range?: readonly [number, number];
+  accentColor: string;
+}
+
+const buildMetricRows = (consort: ConcubineProfile): MetricDescriptor[][] => [
+  [
+    {
+      key: 'prestige',
+      label: '声望',
+      display: String(consort.stats.prestige),
+      numericValue: consort.stats.prestige,
+      range: [-2000, 5000],
+      accentColor: '#b6634c',
+    },
+  ],
+  [
+    {
+      key: 'favor',
+      label: '宠爱',
+      display: String(consort.stats.favor),
+      numericValue: consort.stats.favor,
+      range: [-100, 100],
+      accentColor: '#ca648c',
+    },
+    {
+      key: 'ambition',
+      label: '野心',
+      display: String(consort.stats.ambition),
+      numericValue: consort.stats.ambition,
+      range: [-100, 100],
+      accentColor: '#8a63c4',
+    },
+    {
+      key: 'stress',
+      label: '压力',
+      display: String(consort.stats.stress),
+      numericValue: consort.stats.stress,
+      range: [0, 100],
+      accentColor: '#bc7a42',
+    },
+  ],
+  [
+    {
+      key: 'familyInfluence',
+      label: '家世',
+      display: String(consort.stats.familyInfluence),
+      numericValue: consort.stats.familyInfluence,
+      range: [0, 100],
+      accentColor: '#92704f',
+    },
+  ],
+  [
+    {
+      key: 'health',
+      label: '健康',
+      display: String(consort.stats.health),
+      numericValue: consort.stats.health,
+      range: [0, 1000],
+      accentColor: '#6d8f62',
+    },
+    {
+      key: 'intrigue',
+      label: '心计',
+      display: String(consort.stats.intrigue),
+      numericValue: consort.stats.intrigue,
+      range: [0, 1000],
+      accentColor: '#6e59a8',
+    },
+  ],
+  [
+    {
+      key: 'appearance',
+      label: '容貌',
+      display: String(consort.stats.appearance),
+      numericValue: consort.stats.appearance,
+      range: [0, 1000],
+      accentColor: '#cf7a73',
+    },
+    {
+      key: 'temperament',
+      label: '气质',
+      display: String(consort.stats.temperament),
+      numericValue: consort.stats.temperament,
+      range: [0, 1000],
+      accentColor: '#7482be',
+    },
+  ],
+  [
+    {
+      key: 'relationToPlayer',
+      label: '好感',
+      display: formatSignedValue(consort.stats.relationToPlayer),
+      numericValue: consort.stats.relationToPlayer,
+      range: [-100, 100],
+      accentColor: '#4d92bf',
+    },
+    {
+      key: 'affection',
+      label: '倾情',
+      display: String(consort.stats.affection),
+      numericValue: consort.stats.affection,
+      range: [0, 100],
+      accentColor: '#c45d93',
+    },
+  ],
+  [
+    {
+      key: 'personality',
+      label: '性格',
+      display: consort.personality,
+      accentColor: '#8b6c7f',
+    },
+    {
+      key: 'fortune',
+      label: '福德',
+      display: String(consort.stats.fortune),
+      numericValue: consort.stats.fortune,
+      range: [-100, 100],
+      accentColor: '#aa8547',
+    },
+  ],
+  [
+    {
+      key: 'childrenCount',
+      label: '子嗣',
+      display: String(consort.stats.childrenCount),
+      accentColor: '#8b7269',
+    },
+  ],
+];
+
 interface ConcubineListViewProps {
   concubines: ConcubineProfile[];
   onClose: () => void;
@@ -56,6 +187,7 @@ export function ConcubineListView({ concubines, onClose }: ConcubineListViewProp
   const [activeStatus, setActiveStatus] = useState<ConcubineStatus>('live');
   const [selectedId, setSelectedId] = useState<string>('');
   const [actionNote, setActionNote] = useState('');
+  const [isSocialPanelOpen, setIsSocialPanelOpen] = useState(false);
 
   const visibleConsorts = useMemo(() => sortConcubinesByStatus(concubines, activeStatus), [activeStatus, concubines]);
 
@@ -69,41 +201,24 @@ export function ConcubineListView({ concubines, onClose }: ConcubineListViewProp
     setActionNote('');
   }, [activeStatus, selectedId]);
 
+  useEffect(() => {
+    setIsSocialPanelOpen(false);
+  }, [activeStatus, selectedId]);
+
   const activeConsort = visibleConsorts.find((consort) => consort.id === selectedId) ?? visibleConsorts[0] ?? null;
-
-  const metricsLeft = activeConsort
-    ? [
-        ['声望', activeConsort.stats.prestige],
-        ['宠爱', activeConsort.stats.favor],
-        ['家世', activeConsort.stats.familyInfluence],
-        ['体质', activeConsort.stats.health],
-        ['容貌', activeConsort.stats.appearance],
-        ['好感', formatSignedValue(activeConsort.stats.relationToPlayer)],
-        ['性格', activeConsort.personality],
-        ['子嗣', activeConsort.stats.childrenCount],
-      ]
-    : [];
-
-  const metricsRight = activeConsort
-    ? [
-        ['野心', activeConsort.stats.ambition],
-        ['压力', activeConsort.stats.stress],
-        ['心计', activeConsort.stats.intrigue],
-        ['气质', activeConsort.stats.temperament],
-        ['倾情', activeConsort.stats.affection],
-        ['福德', activeConsort.stats.fortune],
-      ]
-    : [];
 
   if (!activeConsort) {
     return null;
   }
 
-  const titleColor = titleColorMap[activeConsort.status === 'limbo' ? '庶人' : activeConsort.rankLabel] ?? '#5b2b2f';
+  const currentRankText = getConcubineDisplayRankText(activeConsort);
+  const currentRankPalette = getConcubineRankPalette(activeConsort);
   const visitLabel = getVisitLabel(activeConsort.status);
+  const metricRows = buildMetricRows(activeConsort);
+  const currentConditionLabel = getConcubineConditionLabel(activeConsort);
   const noteText =
     actionNote ||
-    `${activeConsort.summary} 来源：${sourceLabelMap[activeConsort.source]}${
+    `家世：${activeConsort.familyBackground}。${activeConsort.summary} 来源：${sourceLabelMap[activeConsort.source]}${
       activeConsort.isCustomConsort ? '，后续可继续扩展自定义剧情。' : '。'
     }`;
 
@@ -131,14 +246,18 @@ export function ConcubineListView({ concubines, onClose }: ConcubineListViewProp
               key={consort.id}
               type="button"
               role="listitem"
+              aria-label={`${getConcubineDisplayRankText(consort)} ${consort.name}`}
               className={`concubine-list-view__entry ${selectedId === consort.id ? 'is-active' : ''}`}
               onClick={() => setSelectedId(consort.id)}
             >
-              <span
-                className="concubine-list-view__entry-label"
-                style={{ color: titleColorMap[consort.status === 'limbo' ? '庶人' : consort.rankLabel] ?? '#5b2b2f' }}
-              >
-                {getConcubineListLabel(consort)}
+              <span className="concubine-list-view__entry-label">
+                <span className="concubine-list-view__entry-rank" style={{ color: getConcubineRankPalette(consort).rankColor }}>
+                  {getConcubineDisplayRankText(consort)}
+                </span>
+                {' '}
+                <span className="concubine-list-view__entry-name" style={{ color: getConcubineRankPalette(consort).nameColor }}>
+                  {consort.name}
+                </span>
               </span>
             </button>
           ))}
@@ -152,58 +271,123 @@ export function ConcubineListView({ concubines, onClose }: ConcubineListViewProp
       <div className="concubine-list-view__detail-surface" aria-hidden="true" />
 
       <div className="concubine-list-view__chips" aria-label="当前嫔妃信息栏">
-        <div className="concubine-list-view__chip concubine-list-view__chip--primary" style={{ color: titleColor }}>
-          {getConcubineListLabel(activeConsort)}
+        <div className="concubine-list-view__chip concubine-list-view__chip--primary">
+          <span className="concubine-list-view__chip-rank" style={{ color: currentRankPalette.rankColor }}>
+            {currentRankText}
+          </span>
+          {' '}
+          <span className="concubine-list-view__chip-name" style={{ color: currentRankPalette.nameColor }}>
+            {activeConsort.name}
+          </span>
         </div>
-        <div className="concubine-list-view__chip">{activeConsort.residence}</div>
-        <div className="concubine-list-view__chip">{`状态 ${activeConsort.stateLabel}`}</div>
+        <div className="concubine-list-view__chip concubine-list-view__chip--secondary">{activeConsort.residence}</div>
+        <div className="concubine-list-view__chip concubine-list-view__chip--secondary">{`状态 ${currentConditionLabel}`}</div>
       </div>
 
-      <button
-        type="button"
-        className="concubine-list-view__visit"
-        onClick={() =>
-          setActionNote(
-            activeConsort.status === 'deceased'
-              ? `关于${activeConsort.name}的追思入口已预留，后续会接入纪事回溯与旧案线索。`
-              : `${activeConsort.name}的${visitLabel}入口已预留，后续会接入正式串门、好感变化与事件分支。`,
-          )
-        }
-      >
-        {visitLabel}
-      </button>
+      <div className="concubine-list-view__action-group" aria-label="嫔妃动作按钮">
+        <button
+          type="button"
+          className="concubine-list-view__visit"
+          onClick={() => {
+            setIsSocialPanelOpen(false);
+            setActionNote(
+              activeConsort.status === 'deceased'
+                ? `关于${activeConsort.name}的追思入口已预留，后续会接入纪事回溯与旧案线索。`
+                : `${activeConsort.name}的${visitLabel}入口已预留，后续会接入正式串门、好感变化与事件分支。`,
+            );
+          }}
+        >
+          {visitLabel}
+        </button>
+        <button
+          type="button"
+          className={`concubine-list-view__social-toggle ${isSocialPanelOpen ? 'is-active' : ''}`}
+          onClick={() => setIsSocialPanelOpen(true)}
+        >
+          人际
+        </button>
+      </div>
 
-      <section className="concubine-list-view__metric-columns" aria-label="嫔妃核心属性">
-        <div className="concubine-list-view__metric-column">
-          {metricsLeft.map(([label, value]) => (
-            <div key={label} className="concubine-list-view__metric-row">
-              <span>{label}</span>
-              <strong>{value}</strong>
-            </div>
-          ))}
-        </div>
-        <div className="concubine-list-view__metric-column">
-          {metricsRight.map(([label, value]) => (
-            <div key={label} className="concubine-list-view__metric-row">
-              <span>{label}</span>
-              <strong>{value}</strong>
-            </div>
-          ))}
-        </div>
+      <section className="concubine-list-view__metric-board" aria-label="嫔妃核心属性">
+        {metricRows.map((row, rowIndex) => (
+          <div
+            key={`metric-row-${rowIndex}`}
+            className={`concubine-list-view__metric-row-group concubine-list-view__metric-row-group--${row.length}`}
+          >
+            {row.map((metric) => {
+              const meterStyle =
+                metric.range && typeof metric.numericValue === 'number'
+                  ? ({
+                      '--metric-fill': metric.accentColor,
+                      '--metric-level': `${getMetricPercent(metric.numericValue, metric.range)}%`,
+                    } as CSSProperties)
+                  : undefined;
+              const isSignedRange = Boolean(metric.range && metric.range[0] < 0);
+              return (
+                <article
+                  key={metric.key}
+                  className={`concubine-list-view__metric-card ${metric.range ? '' : 'is-text-only'}`}
+                  style={meterStyle}
+                >
+                  <div className="concubine-list-view__metric-copy">
+                    <span>{metric.label}</span>
+                    <strong>{metric.display}</strong>
+                  </div>
+                  {metric.range ? (
+                    <div
+                      className={`concubine-list-view__metric-meter ${isSignedRange ? 'is-signed' : ''}`}
+                      aria-hidden="true"
+                    >
+                      <div className="concubine-list-view__metric-meter-fill" />
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+        ))}
       </section>
 
-      <section className="concubine-list-view__relations" aria-label="嫔妃社交关系">
-        <article className="concubine-list-view__relation-block">
-          <h3>交好</h3>
-          <p>{activeConsort.allies.length > 0 ? activeConsort.allies.join('、') : '暂无明显交好对象'}</p>
-        </article>
-        <article className="concubine-list-view__relation-block">
-          <h3>交恶</h3>
-          <p>{activeConsort.rivals.length > 0 ? activeConsort.rivals.join('、') : '暂无明显交恶对象'}</p>
-        </article>
-      </section>
+      {isSocialPanelOpen ? (
+        <section className="concubine-list-view__social-panel" aria-label="嫔妃人际关系">
+          <header className="concubine-list-view__social-header">
+            <h3>人际</h3>
+            <button type="button" onClick={() => setIsSocialPanelOpen(false)}>
+              收起
+            </button>
+          </header>
+          <article className="concubine-list-view__social-group">
+            <span>交好</span>
+            <div className="concubine-list-view__social-pills">
+              {activeConsort.allies.length > 0 ? (
+                activeConsort.allies.map((name) => (
+                  <span key={name} className="concubine-list-view__social-pill is-ally">
+                    {name}
+                  </span>
+                ))
+              ) : (
+                <span className="concubine-list-view__social-empty">暂无明显交好对象</span>
+              )}
+            </div>
+          </article>
+          <article className="concubine-list-view__social-group">
+            <span>交恶</span>
+            <div className="concubine-list-view__social-pills">
+              {activeConsort.rivals.length > 0 ? (
+                activeConsort.rivals.map((name) => (
+                  <span key={name} className="concubine-list-view__social-pill is-rival">
+                    {name}
+                  </span>
+                ))
+              ) : (
+                <span className="concubine-list-view__social-empty">暂无明显交恶对象</span>
+              )}
+            </div>
+          </article>
+        </section>
+      ) : null}
 
-      <p className="concubine-list-view__note">{noteText}</p>
+      <p className={`concubine-list-view__note ${isSocialPanelOpen ? 'is-hidden' : ''}`}>{noteText}</p>
 
       <section className="concubine-list-view__portrait-stage" aria-label={`${activeConsort.name}立绘`}>
         <img

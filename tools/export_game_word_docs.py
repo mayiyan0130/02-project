@@ -14,6 +14,7 @@ EXPORTS = [
     (ROOT / "docs" / "system-hard-rules-integrated.md", ROOT / "game word" / "系统硬规则总稿.docx"),
     (ROOT / "docs" / "custom-consort-ai-interface.md", ROOT / "game word" / "自定义剧情妃与AI接口规则.docx"),
     (ROOT / "docs" / "character-story-nodes-and-relationship-ai.md", ROOT / "game word" / "角色剧情节点与关系AI接口.docx"),
+    (ROOT / "docs" / "fixed-romance-npc-profiles.md", ROOT / "game word" / "固定可攻略NPC人设.docx"),
     (ROOT / "docs" / "palace-strife-architecture.md", ROOT / "game word" / "宫斗事务硬规则.docx"),
     (ROOT / "docs" / "emperor-behavior-architecture.md", ROOT / "game word" / "皇帝行为与心情硬规则.docx"),
     (ROOT / "docs" / "imperial-heir-architecture.md", ROOT / "game word" / "皇嗣管理与生育后续硬规则.docx"),

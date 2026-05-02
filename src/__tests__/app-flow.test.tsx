@@ -154,15 +154,58 @@ describe('App 主流程切换', () => {
     expect(screen.getAllByText(/姚铃儿/).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('tab', { name: '冷宫' }));
-    expect((await screen.findAllByText(/庶人 杜若蘅/)).length).toBeGreaterThan(0);
+    expect(await screen.findByRole('listitem', { name: '庶人 杜若蘅' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('tab', { name: '已逝' }));
-    expect((await screen.findAllByText(/悼嫔 冯妙莲/)).length).toBeGreaterThan(0);
+    expect(await screen.findByRole('listitem', { name: '悼嫔 冯妙莲' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '返回' }));
     await waitFor(() => {
       expect(screen.queryByLabelText('嫔妃总览面板')).not.toBeInTheDocument();
     });
+  });
+
+  it('特殊角色不会进入妃嫔名单', () => {
+    const roster = buildInitialConcubineRoster('lanyinxuguo', [
+      {
+        id: 'custom-taohou',
+        routeScope: 'all',
+        portraitId: '太后',
+        name: '太后',
+        rankLabel: '太后',
+        status: 'live',
+        residence: '慈宁宫',
+        stateLabel: '寻常',
+        age: 52,
+        familyBackground: '皇家',
+        personality: '威严沉静',
+        summary: '特殊角色，不应进入妃嫔总览名单。',
+        source: 'custom',
+        stats: {
+          prestige: 999,
+          favor: 0,
+          familyInfluence: 100,
+          health: 100,
+          appearance: 100,
+          relationToPlayer: 0,
+          childrenCount: 0,
+          ambition: 0,
+          stress: 0,
+          intrigue: 100,
+          temperament: 100,
+          affection: 0,
+          fortune: 100,
+        },
+        allies: [],
+        rivals: [],
+      },
+    ]);
+    const names = roster.map((consort) => consort.name);
+
+    expect(names).not.toContain('连翘');
+    expect(names).not.toContain('杜娘');
+    expect(names).not.toContain('娇娇');
+    expect(names.some((name) => name.includes('太后'))).toBe(false);
   });
 
   it('结束本旬后会进入下一旬清晨并按新旬规则重算体力', async () => {

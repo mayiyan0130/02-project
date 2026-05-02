@@ -17,12 +17,14 @@ import type {
   RelationshipJudgeOutcome,
   RouteSelectionProfile,
   SceneId,
+  MapAreaId,
 } from '../types';
 
 interface GameFlowStore {
   currentView: CurrentView;
   scene: SceneId;
   activeChamberPanel: ChamberPanelId;
+  activeMapLocation?: MapAreaId;
   routeId: GameNumericsState['routeId'];
   state: GameNumericsState;
   hiddenStats: HiddenStatsState;
@@ -40,7 +42,7 @@ interface GameFlowStore {
   setScene: (scene: SceneId) => void;
   openChamberPanel: (panel: ChamberPanelId) => void;
   closeChamberPanel: () => void;
-  enterMainChamber: () => void;
+  enterMainChamber: (location?: MapAreaId | null) => void;
   enterMapMain: () => void;
   setRoute: (routeId: GameNumericsState['routeId']) => void;
   applyRouteSelection: (profile: RouteSelectionProfile) => void;
@@ -251,6 +253,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
       currentView: 'start',
       scene: 'menu',
       activeChamberPanel: 'main',
+      activeMapLocation: undefined,
       routeId: 'lanyinxuguo',
       state: initialState,
       hiddenStats: initialHiddenStats,
@@ -268,11 +271,12 @@ export const useGameFlowStore = create<GameFlowStore>()(
       setScene: (scene) => set({ scene }),
       openChamberPanel: (activeChamberPanel) => set({ activeChamberPanel }),
       closeChamberPanel: () => set({ activeChamberPanel: 'main' }),
-      enterMainChamber: () =>
+      enterMainChamber: (location) =>
         set({
           currentView: 'bedchamber',
           scene: 'activity',
           activeChamberPanel: 'main',
+          activeMapLocation: location ?? undefined,
         }),
       enterMapMain: () =>
         set({
@@ -542,6 +546,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
       partialize: (state) => ({
         scene: state.scene,
         activeChamberPanel: state.activeChamberPanel,
+        activeMapLocation: state.activeMapLocation,
         routeId: state.routeId,
         state: state.state,
         hiddenStats: state.hiddenStats,
@@ -561,6 +566,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
         ...(persisted as Partial<GameFlowStore>),
         currentView: 'start',
         activeChamberPanel: (persisted as Partial<GameFlowStore>)?.activeChamberPanel ?? 'main',
+        activeMapLocation: (persisted as Partial<GameFlowStore>)?.activeMapLocation,
         bondProfile:
           (persisted as Partial<GameFlowStore>)?.bondProfile ??
           buildInitialBondProfile(current.state.routeId, getCurrentXunKey(current.time)),

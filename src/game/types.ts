@@ -15,6 +15,7 @@ export type MapAreaId =
   | '御书房'
   | '御膳房'
   | '建章宫'
+  | '御花园'
   | '正阳门'
   | '宫门'
   | '冷宫'
@@ -22,6 +23,7 @@ export type MapAreaId =
   | '太医院'
   | '妙音堂'
   | '宝华殿'
+  | '华清池'
   | '重华宫'
   | '椒房殿'
   | '储秀宫'
@@ -206,6 +208,12 @@ export interface ConcubineStats {
   fortune: number;
 }
 
+export interface ConcubineConditionFlags {
+  illness?: boolean;
+  madness?: boolean;
+  pregnant?: boolean;
+}
+
 export interface ConcubineProfile {
   id: string;
   routeScope?: RouteId | 'all';
@@ -216,6 +224,7 @@ export interface ConcubineProfile {
   status: ConcubineStatus;
   residence: string;
   stateLabel: string;
+  conditionFlags?: ConcubineConditionFlags;
   age: number;
   familyBackground: string;
   personality: string;

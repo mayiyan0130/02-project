@@ -1,4 +1,4 @@
-import type { RouteId } from '../game/types';
+import type { MapAreaId, RouteId } from '../game/types';
 
 export interface GuideTendencyOption {
   id: 'steady' | 'radiant' | 'balanced';
@@ -20,7 +20,7 @@ export interface PalaceSidebarButtonConfig {
 }
 
 export interface MapHotspotConfig {
-  id: string;
+  id: MapAreaId | '后宫';
   label: string;
   top: string;
   left: string;

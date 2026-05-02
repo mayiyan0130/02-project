@@ -1,6 +1,7 @@
 export type ChamberPanelId =
   | 'main'
   | 'map'
+  | 'harem'
   | 'stats'
   | 'consorts'
   | 'bond'
@@ -22,6 +23,7 @@ export interface ChamberActionConfig {
 export const chamberActionConfigs: readonly ChamberActionConfig[] = [
   { id: 'main', label: '寝殿', description: '查看当前状态与娇娇提醒。', requiresStamina: false, staminaCost: 0, timeCost: 0 },
   { id: 'map', label: '地图', description: '前往各宫殿与公共地点。', requiresStamina: false, staminaCost: 0, timeCost: 0 },
+  { id: 'harem', label: '后宫', description: '查看十二宫与各宫殿位布局。', requiresStamina: false, staminaCost: 0, timeCost: 0 },
   { id: 'stats', label: '属性', description: '查看主副属性与当前成长。', requiresStamina: false, staminaCost: 0, timeCost: 0 },
   { id: 'consorts', label: '妃嫔', description: '查看后宫妃嫔、宫殿与关系。', requiresStamina: false, staminaCost: 0, timeCost: 0 },
   { id: 'bond', label: '情缘', description: '查看攻略对象、好感与倾情进度。', requiresStamina: false, staminaCost: 0, timeCost: 0 },
