@@ -12,6 +12,7 @@ import { ConsortDialogueService } from './modules/ai/consortDialogueService';
 import { OpeningDialogueService } from './modules/ai/openingDialogueService';
 import { RelationshipJudgeService } from './modules/ai/relationshipJudgeService';
 import { TaiyiAmbientService } from './modules/ai/taiyiAmbientService';
+import { MiaoYinAmbientService } from './modules/ai/miaoyinAmbientService';
 import { TempleAmbientService } from './modules/ai/templeAmbientService';
 import { FoundationConfigRegistry } from './modules/foundation/configRegistry';
 import { FoundationRepository } from './modules/foundation/repository';
@@ -44,6 +45,7 @@ export const buildApp = async (runtimeEnv: ServerEnv = readEnv()) => {
   const consortDialogueService = new ConsortDialogueService(runtimeEnv, textAiClient);
   const relationshipJudgeService = new RelationshipJudgeService(runtimeEnv, relationshipJudgeAiClient);
   const taiyiAmbientService = new TaiyiAmbientService(runtimeEnv, textAiClient);
+  const miaoyinAmbientService = new MiaoYinAmbientService(runtimeEnv, textAiClient);
   const templeAmbientService = new TempleAmbientService(runtimeEnv, textAiClient);
   const worker = new NarrativeWorker(cacheBus, narrativeService, alerting);
   const foundationRegistry = new FoundationConfigRegistry();
@@ -59,6 +61,7 @@ export const buildApp = async (runtimeEnv: ServerEnv = readEnv()) => {
     consortDialogueService,
     relationshipJudgeService,
     taiyiAmbientService,
+    miaoyinAmbientService,
     templeAmbientService,
   });
   await registerFoundationRoutes(app, foundationService);

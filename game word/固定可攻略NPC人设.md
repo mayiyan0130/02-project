@@ -477,7 +477,7 @@ entry_state: hidden
 active_scene_tags: [回忆, 旧物, 边地消息, 离宫准备, 结局节点]
 core_personality: [自由, 护短, 克制, 执拗, 可靠]
 public_face: 尘缘夙错路线专属关键人物，来自草原，是玩家真正牵挂的人
-hidden_core: 他不是后宫体系内的竞争者，而是整条路线“离开皇城、回到真正想去之处”的情感锚点；他的存在会持续拉扯玩家对宫中生活的认同感
+hidden_core: 她不是后宫体系内的竞争者，而是整条路线“离开皇城、回到真正想去之处”的情感锚点；她的存在会持续拉扯玩家对宫中生活的认同感
 initial_stats:
   physique: 860/1000
   vigilance: 820/1000
@@ -497,7 +497,7 @@ route_flags:
   - aling_trace_found
   - aling_route_confirmed
   - aling_reunion_ready
-notes: 阿翎不需要高频出场。他更适合作为记忆、旧物、消息与最终抉择的核心锚点，保持稀缺感才有分量。
+notes: 阿翎不需要高频出场。她更适合作为记忆、旧物、消息与最终抉择的核心锚点，保持稀缺感才有分量。
 ```
 
 ## 6. 路线挂载关系

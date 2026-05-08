@@ -20,6 +20,10 @@
 - 双 AI 接口边界
 - 无 AI 也必须能跑通的规则
 
+如涉及剧情文本、系统提示词、角色对白或场景生成，还必须读取：
+
+- `C:\02-project\docs\character-dialogue-system-patch.md`
+
 ## 2. 再读取游戏硬规则
 
 优先读取这些 Word 文档：
@@ -44,6 +48,7 @@
 - `C:\02-project\docs\economy-governance-architecture.md`
 - `C:\02-project\docs\imperial-heir-architecture.md`
 - `C:\02-project\docs\character-story-nodes-and-relationship-ai.md`
+- `C:\02-project\docs\character-dialogue-system-patch.md`
 
 ## 3. 当前前端开发必须遵守
 

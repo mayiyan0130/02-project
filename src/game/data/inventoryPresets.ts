@@ -349,6 +349,111 @@ const DU_NIANG_RARE_POOL: readonly InventoryItem[] = [
   },
 ] as const;
 
+const MUSIC_SCORE_LIBRARY: readonly InventoryItem[] = [
+  {
+    id: 'score-phoenix-return',
+    itemId: 'score-phoenix-return',
+    name: '凤归云阙谱',
+    color: 'red',
+    category: 'music-score',
+    rarity: 'red',
+    quantity: 1,
+    price: 0,
+    favorDelta: 0,
+    healthDelta: 0,
+    appearanceDelta: 0,
+    temperamentDelta: 0,
+    description: '红色曲谱，转调繁复，若在宫宴上演成，最易压住满堂杂音。',
+    canSell: false,
+    canRecycle: false,
+  },
+  {
+    id: 'score-spring-river',
+    itemId: 'score-spring-river',
+    name: '春江引谱',
+    color: 'purple',
+    category: 'music-score',
+    rarity: 'purple',
+    quantity: 1,
+    price: 0,
+    favorDelta: 0,
+    healthDelta: 0,
+    appearanceDelta: 0,
+    temperamentDelta: 0,
+    description: '紫色曲谱，曲意清润绵长，适合在妙音堂试一试气口与层次。',
+    canSell: false,
+    canRecycle: false,
+  },
+  {
+    id: 'score-mist-pavilion',
+    itemId: 'score-mist-pavilion',
+    name: '烟水长亭谱',
+    color: 'purple',
+    category: 'music-score',
+    rarity: 'purple',
+    quantity: 1,
+    price: 0,
+    favorDelta: 0,
+    healthDelta: 0,
+    appearanceDelta: 0,
+    temperamentDelta: 0,
+    description: '紫色曲谱，旋律温缓，最见行腔细腻处的分寸。',
+    canSell: false,
+    canRecycle: false,
+  },
+  {
+    id: 'score-cinnabar-dream',
+    itemId: 'score-cinnabar-dream',
+    name: '朱弦入梦谱',
+    color: 'red',
+    category: 'music-score',
+    rarity: 'red',
+    quantity: 1,
+    price: 0,
+    favorDelta: 0,
+    healthDelta: 0,
+    appearanceDelta: 0,
+    temperamentDelta: 0,
+    description: '红色曲谱，板眼华丽，最适合做压轴之用。',
+    canSell: false,
+    canRecycle: false,
+  },
+  {
+    id: 'score-moon-on-paulownia',
+    itemId: 'score-moon-on-paulownia',
+    name: '桐月流辉谱',
+    color: 'purple',
+    category: 'music-score',
+    rarity: 'purple',
+    quantity: 1,
+    price: 0,
+    favorDelta: 0,
+    healthDelta: 0,
+    appearanceDelta: 0,
+    temperamentDelta: 0,
+    description: '紫色曲谱，音色冷净，最重收放与留白。',
+    canSell: false,
+    canRecycle: false,
+  },
+  {
+    id: 'score-vermilion-feathers',
+    itemId: 'score-vermilion-feathers',
+    name: '丹羽朝仪谱',
+    color: 'red',
+    category: 'music-score',
+    rarity: 'red',
+    quantity: 1,
+    price: 0,
+    favorDelta: 0,
+    healthDelta: 0,
+    appearanceDelta: 0,
+    temperamentDelta: 0,
+    description: '红色曲谱，起势明艳，若唱得稳，最容易教人一眼记住。',
+    canSell: false,
+    canRecycle: false,
+  },
+] as const;
+
 const hashSeed = (seed: string): number =>
   seed.split('').reduce((accumulator, char, index) => accumulator + char.charCodeAt(0) * (index + 17), 0);
 
@@ -395,3 +500,18 @@ export const buildKitchenFoodCatalog = (): InventoryItem[] =>
   KITCHEN_FOOD_ITEMS.map((item) => ({
     ...item,
   }));
+
+export const isMusicScoreItem = (item: InventoryItem): boolean => item.category === 'music-score';
+
+export const buildMusicScoreItem = (itemId: string): InventoryItem | null => {
+  const template = MUSIC_SCORE_LIBRARY.find((item) => item.itemId === itemId);
+  return template ? { ...template } : null;
+};
+
+export const buildRandomMusicScoreItem = (seed: string): InventoryItem => {
+  const template = MUSIC_SCORE_LIBRARY[hashSeed(seed) % MUSIC_SCORE_LIBRARY.length];
+  return { ...template };
+};
+
+export const buildMusicScoreRewardBundle = (seed: string, quantity: number): InventoryItem[] =>
+  Array.from({ length: Math.max(1, quantity) }, (_, index) => buildRandomMusicScoreItem(`${seed}:${index}`));

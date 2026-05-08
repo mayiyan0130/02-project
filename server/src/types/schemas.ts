@@ -323,3 +323,24 @@ export const taiyiAmbientRequestSchema = z.object({
 export const taiyiAmbientResponseSchema = z.object({
   text: z.string().min(1),
 });
+
+export const miaoyinAmbientRequestSchema = z.object({
+  routeId: z.string().min(1),
+  playerName: z.string().min(1),
+  playerRank: z.string().min(1),
+  location: z.string().min(1),
+  action: z.enum(['listen', 'stroll-idle', 'sign-up']),
+  stateHint: z.string().min(1).optional(),
+  timeContext: z.object({
+    year: z.number().int(),
+    month: z.number().int().min(1).max(12),
+    xun: z.number().int().min(1).max(3),
+    slotIndex: z.number().int().min(0).max(6),
+    slot: z.string().min(1),
+    slotProgress: z.number().min(0).max(1).optional(),
+  }),
+});
+
+export const miaoyinAmbientResponseSchema = z.object({
+  text: z.string().min(1),
+});

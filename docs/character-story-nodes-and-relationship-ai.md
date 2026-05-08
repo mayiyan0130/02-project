@@ -16,6 +16,8 @@ AI 在这里的职责只有两类：
 - 生成剧情文本与角色反应
 - 对玩家按钮选项做“关系倾向判定”
 
+角色对白、场景礼法、称谓口径与人物说话方式，统一以 [character-dialogue-system-patch.md](/C:/02-project/docs/character-dialogue-system-patch.md) 为补充约束；若与角色主档冲突，以角色主档为准；若与硬规则冲突，以硬规则为准。
+
 ## 二、节奏原则
 
 ### 2.1 节点结构

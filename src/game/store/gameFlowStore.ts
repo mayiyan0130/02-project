@@ -26,6 +26,7 @@ import type {
   PalaceTimeState,
   KitchenProgressState,
   MedicalProgressState,
+  MusicHallProgressState,
   TempleProgressState,
   RelationshipJudgeOutcome,
   RouteSelectionProfile,
@@ -57,6 +58,7 @@ interface GameFlowStore {
   consortInteractionMap: Record<string, ConsortInteractionProgress>;
   kitchenProgress: KitchenProgressState;
   medicalProgress: MedicalProgressState;
+  musicHallProgress: MusicHallProgressState;
   templeProgress: TempleProgressState;
   setCurrentView: (view: CurrentView) => void;
   setScene: (scene: SceneId) => void;
@@ -81,8 +83,10 @@ interface GameFlowStore {
   patchConcubineById: (consortId: string, updater: (consort: ConcubineProfile) => ConcubineProfile) => void;
   patchKitchenProgress: (patch: Partial<KitchenProgressState>) => void;
   patchMedicalProgress: (patch: Partial<MedicalProgressState>) => void;
+  patchMusicHallProgress: (patch: Partial<MusicHallProgressState>) => void;
   patchTempleProgress: (patch: Partial<TempleProgressState>) => void;
   consumeInventoryItem: (itemId: string) => boolean;
+  grantInventoryItem: (item: InventoryItem, quantity?: number) => void;
   buyInventoryItem: (item: InventoryItem, stockLimit?: number | null) => { success: boolean; message: string };
   sellInventoryItem: (itemId: string) => { success: boolean; message: string };
   applyConsortRelationshipJudgement: (
@@ -342,6 +346,16 @@ const createInitialMedicalProgress = (): MedicalProgressState => ({
   jianNingAffinity: 0,
 });
 
+const createInitialMusicHallProgress = (): MusicHallProgressState => ({
+  listenCount: 0,
+  strollCount: 0,
+  signUpCount: 0,
+  lianQiaoFirstMet: false,
+  lianQiaoMet: false,
+  lianQiaoFavor: 0,
+  lianQiaoAffection: 0,
+});
+
 export const useGameFlowStore = create<GameFlowStore>()(
   persist(
     (set) => ({
@@ -368,6 +382,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
       consortInteractionMap: {},
       kitchenProgress: createInitialKitchenProgress(),
       medicalProgress: createInitialMedicalProgress(),
+      musicHallProgress: createInitialMusicHallProgress(),
       templeProgress: createInitialTempleProgress(),
       setCurrentView: (currentView) => set({ currentView }),
       setScene: (scene) => set({ scene }),
@@ -397,6 +412,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
           merchantLedger: {},
           kitchenProgress: createInitialKitchenProgress(),
           medicalProgress: createInitialMedicalProgress(),
+          musicHallProgress: createInitialMusicHallProgress(),
           templeProgress: createInitialTempleProgress(),
         })),
       applyRouteSelection: (profile) =>
@@ -440,6 +456,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             consortInteractionMap: {},
             kitchenProgress: createInitialKitchenProgress(),
             medicalProgress: createInitialMedicalProgress(),
+            musicHallProgress: createInitialMusicHallProgress(),
             templeProgress: createInitialTempleProgress(),
           };
         }),
@@ -582,6 +599,13 @@ export const useGameFlowStore = create<GameFlowStore>()(
             ...patch,
           },
         })),
+      patchMusicHallProgress: (patch) =>
+        set((current) => ({
+          musicHallProgress: {
+            ...current.musicHallProgress,
+            ...patch,
+          },
+        })),
       patchTempleProgress: (patch) =>
         set((current) => ({
           templeProgress: {
@@ -622,6 +646,37 @@ export const useGameFlowStore = create<GameFlowStore>()(
         });
         return consumed;
       },
+      grantInventoryItem: (item, quantity = 1) =>
+        set((current) => {
+          const normalizedQuantity = Math.max(1, Math.floor(quantity));
+          const existingIndex = current.inventory.findIndex((entry) => entry.itemId === item.itemId);
+          const baseItem = {
+            ...item,
+            id: item.id ?? item.itemId,
+            color: item.color ?? item.rarity,
+          };
+          const nextInventory =
+            existingIndex === -1
+              ? [
+                  ...current.inventory,
+                  {
+                    ...baseItem,
+                    quantity: normalizedQuantity,
+                  },
+                ]
+              : current.inventory.map((entry, index) =>
+                  index === existingIndex
+                    ? {
+                        ...entry,
+                        quantity: entry.quantity + normalizedQuantity,
+                      }
+                    : entry,
+                );
+
+          return {
+            inventory: nextInventory,
+          };
+        }),
       buyInventoryItem: (item, stockLimit) => {
         let result = {
           success: false,
@@ -986,6 +1041,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
         consortInteractionMap: state.consortInteractionMap,
         kitchenProgress: state.kitchenProgress,
         medicalProgress: state.medicalProgress,
+        musicHallProgress: state.musicHallProgress,
         templeProgress: state.templeProgress,
       }),
       merge: (persisted, current) => ({
@@ -1016,6 +1072,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
         consortInteractionMap: (persisted as Partial<GameFlowStore>)?.consortInteractionMap ?? {},
         kitchenProgress: (persisted as Partial<GameFlowStore>)?.kitchenProgress ?? createInitialKitchenProgress(),
         medicalProgress: (persisted as Partial<GameFlowStore>)?.medicalProgress ?? createInitialMedicalProgress(),
+        musicHallProgress: (persisted as Partial<GameFlowStore>)?.musicHallProgress ?? createInitialMusicHallProgress(),
         templeProgress: (persisted as Partial<GameFlowStore>)?.templeProgress ?? createInitialTempleProgress(),
       }),
     },

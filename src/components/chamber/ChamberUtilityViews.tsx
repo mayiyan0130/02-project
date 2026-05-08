@@ -707,7 +707,7 @@ export function InventoryPanelView({ onClose }: InventoryPanelViewProps) {
   const entries = useMemo<Record<InventoryTabId, typeof inventory>>(
     () => ({
       tonic: inventory.filter((item) => item.category === 'food'),
-      gift: inventory.filter((item) => item.category === 'gift'),
+      gift: inventory.filter((item) => item.category === 'gift' || item.category === 'music-score'),
       pill: inventory.filter((item) => item.category === 'medicine' || item.category === 'rare'),
       'key-item': [],
     }),
@@ -745,7 +745,11 @@ export function InventoryPanelView({ onClose }: InventoryPanelViewProps) {
             <article key={entry.itemId} className="chamber-utility-view__entry-card">
               <h3>{entry.name}</h3>
               <p>{entry.description}</p>
-              <p>{`当前库存：${entry.quantity} | 单价：${entry.price}两 | 回收价：${getInventoryRecyclePrice(entry)}两`}</p>
+              <p>
+                {entry.category === 'music-score'
+                  ? `当前库存：${entry.quantity} | 曲谱颜色：${entry.color ?? entry.rarity} | 登记编号：${entry.id ?? entry.itemId}`
+                  : `当前库存：${entry.quantity} | 单价：${entry.price}两 | 回收价：${getInventoryRecyclePrice(entry)}两`}
+              </p>
             </article>
           ))
         ) : (

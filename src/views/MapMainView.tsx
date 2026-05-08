@@ -6,6 +6,7 @@ import type { ChamberPanelId } from '../config/bedchamber';
 import { LOCATION_SCENE_BACKGROUNDS } from '../config/locationSceneBackgrounds';
 import { MAP_GUIDE_LINES, MAP_HOTSPOTS, MAP_SIDEBAR_BUTTONS } from '../config/palaceUi';
 import { buildDuNiangShopCatalog, getInventoryRecyclePrice, type DuNiangShopEntry } from '../game/data/inventoryPresets';
+import { canAccessHotSpringByPrestige } from '../game/lib/rankRuntime';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
 import type { AffairSourceLabel } from '../game/types';
 
@@ -236,6 +237,13 @@ export function MapMainView() {
 
   const handleEnterHotspot = () => {
     if (!selectedHotspot) return;
+
+    if (selectedHotspot.id === '华清池' && !canAccessHotSpringByPrestige(state.prestige)) {
+      setSelectedHotspotId(null);
+      setMapEventText('小主，华清池乃是容华及以上位分方可享用之地，咱们还是先请回吧。');
+      return;
+    }
+
     advanceTime(1);
     setMapEventText('');
 

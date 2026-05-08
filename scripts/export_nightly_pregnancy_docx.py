@@ -120,6 +120,7 @@ def build_document_xml(markdown_text: str) -> str:
     )
     return (
         XML_DECL
+        + 
         f'<w:document xmlns:w="{W_NAMESPACE}"><w:body>{body}{sect}</w:body></w:document>'
     )
 

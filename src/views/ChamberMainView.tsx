@@ -2,15 +2,19 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { AffairsPanelView, BondPanelView, ChroniclePanelView, InventoryPanelView, MiscInfoPanelView } from '../components/chamber/ChamberUtilityViews';
 import { BaohuaHallView } from '../components/chamber/BaohuaHallView';
 import { DowagerAudiencePanel } from '../components/chamber/DowagerAudiencePanel';
+import { HuaQingPoolView } from '../components/chamber/HuaQingPoolView';
 import { KitchenView } from '../components/chamber/KitchenView';
+import { MiaoYinHallView } from '../components/chamber/MiaoYinHallView';
 import { TaiHospitalView } from '../components/chamber/TaiHospitalView';
 import { ConcubineListView } from '../components/consorts/ConcubineListView';
 import { HaremPalaceView } from '../components/consorts/HaremPalaceView';
 import { GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
 import { PalaceStatusBar } from '../components/status/PalaceStatusBar';
 import { PlayerStatsView } from '../components/status/PlayerStatsView';
+import { AutoCutoutPortrait } from '../components/visual/AutoCutoutPortrait';
 import { CHAMBER_ACTION_BUTTONS, CHAMBER_BOTTOM_TOOLS, CHAMBER_SIDEBAR_BUTTONS } from '../config/palaceUi';
 import { LOCATION_SCENE_BACKGROUNDS } from '../config/locationSceneBackgrounds';
+import { buildRandomMusicScoreItem } from '../game/data/inventoryPresets';
 import { buildInitialBondProfile } from '../game/data/bondPresets';
 import { getRarityColor } from '../game/lib/bedchamberRuntime';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
@@ -29,8 +33,10 @@ const bottomToolMessage: Record<string, string> = {
   皇嗣管理: '皇嗣管理入口已预留，后续会接入孩子成长、教育与立储判定。',
 };
 const ASSISTANT_PORTRAIT_SRC = '/assets/dialogue/jiaojiao-final.png';
+const LIANQIAO_PORTRAIT_SRC = new URL('../../picture/npc/连翘.jpg', import.meta.url).href;
 
 const getCurrentXunKey = (year: number, month: number, xun: number): string => `${year}-${month}-${xun}`;
+const toXunIndex = (year: number, month: number, xun: number): number => year * 36 + (month - 1) * 3 + xun;
 
 export function ChamberMainView() {
   const {
@@ -46,6 +52,9 @@ export function ChamberMainView() {
     applyStoryEffects,
     advanceTime,
     patchState,
+    musicHallProgress,
+    patchMusicHallProgress,
+    grantInventoryItem,
     enterMapMain,
     setActiveAffairsSource,
     bondProfile,
@@ -54,11 +63,14 @@ export function ChamberMainView() {
     ensureConcubines,
   } = useGameFlowStore();
   const [dialogueText, setDialogueText] = useState('');
+  const [bedchamberGiftItemName, setBedchamberGiftItemName] = useState('');
   const isOutsideScene = Boolean(activeMapLocation);
   const isJianzhangAudience = activeChamberPanel === 'main' && activeMapLocation === '建章宫';
   const isKitchenScene = activeChamberPanel === 'main' && activeMapLocation === '御膳房';
   const isBaohuaHallScene = activeChamberPanel === 'main' && activeMapLocation === '宝华殿';
+  const isHuaQingPoolScene = activeChamberPanel === 'main' && activeMapLocation === '华清池';
   const isTaiHospitalScene = activeChamberPanel === 'main' && activeMapLocation === '太医院';
+  const isMiaoYinHallScene = activeChamberPanel === 'main' && activeMapLocation === '妙音堂';
   const isHaremPanelActive = activeChamberPanel === 'harem';
   const isFullSurfacePanel = activeChamberPanel !== 'main';
   const showResidenceUi = !isOutsideScene && !isFullSurfacePanel;
@@ -99,7 +111,14 @@ export function ChamberMainView() {
       return;
     }
 
-    if (activeMapLocation === '建章宫' || activeMapLocation === '御膳房' || activeMapLocation === '宝华殿' || activeMapLocation === '太医院') {
+    if (
+      activeMapLocation === '建章宫' ||
+      activeMapLocation === '御膳房' ||
+      activeMapLocation === '宝华殿' ||
+      activeMapLocation === '华清池' ||
+      activeMapLocation === '太医院' ||
+      activeMapLocation === '妙音堂'
+    ) {
       setDialogueText('');
       return;
     }
@@ -113,6 +132,37 @@ export function ChamberMainView() {
       setDialogueText('');
     }
   }, [activeChamberPanel, activeMapLocation, patchState, state.flags, state.residenceName]);
+
+  useEffect(() => {
+    if (activeChamberPanel !== 'main' || activeMapLocation || !state.flags.isLianQiaoMet || musicHallProgress.lianQiaoAffection <= 60 || bedchamberGiftItemName) {
+      return;
+    }
+
+    const currentXunIndex = toXunIndex(time.year, time.month, time.xun);
+    const lastGiftXunIndex = musicHallProgress.lastGiftXunIndex ?? -999999;
+    if (currentXunIndex - lastGiftXunIndex < 3) {
+      return;
+    }
+
+    const giftItem = buildRandomMusicScoreItem(`${state.routeId}:${currentXunIndex}:bedchamber-lianqiao-gift`);
+    grantInventoryItem(giftItem);
+    patchMusicHallProgress({ lastGiftXunIndex: currentXunIndex });
+    setBedchamberGiftItemName(giftItem.name);
+    setDialogueText('');
+  }, [
+    activeChamberPanel,
+    activeMapLocation,
+    bedchamberGiftItemName,
+    grantInventoryItem,
+    musicHallProgress.lastGiftXunIndex,
+    musicHallProgress.lianQiaoAffection,
+    patchMusicHallProgress,
+    state.flags.isLianQiaoMet,
+    state.routeId,
+    time.month,
+    time.xun,
+    time.year,
+  ]);
 
   const skillStats = useMemo(
     () =>
@@ -278,8 +328,12 @@ export function ChamberMainView() {
           <KitchenView concubines={concubines} />
         ) : isBaohuaHallScene ? (
           <BaohuaHallView concubines={concubines} />
+        ) : isHuaQingPoolScene ? (
+          <HuaQingPoolView concubines={concubines} />
         ) : isTaiHospitalScene ? (
           <TaiHospitalView concubines={concubines} />
+        ) : isMiaoYinHallScene ? (
+          <MiaoYinHallView concubines={concubines} />
         ) : isJianzhangAudience ? (
           <DowagerAudiencePanel onLeave={enterMapMain} />
         ) : activeChamberPanel === 'harem' ? (
@@ -314,7 +368,13 @@ export function ChamberMainView() {
           <ConcubineListView concubines={concubines} onClose={closeChamberPanel} />
         ) : null}
 
-        {dialogueText && activeChamberPanel === 'main' && !isJianzhangAudience && !isBaohuaHallScene && !isTaiHospitalScene ? (
+        {dialogueText &&
+        activeChamberPanel === 'main' &&
+        !isJianzhangAudience &&
+        !isBaohuaHallScene &&
+        !isHuaQingPoolScene &&
+        !isTaiHospitalScene &&
+        !isMiaoYinHallScene ? (
           <GlobalDialogueStage
             sceneLabel="寝殿指引场景"
             portraitLabel="娇娇立绘"
@@ -327,6 +387,30 @@ export function ChamberMainView() {
             content={dialogueText}
             nextActionLabel="收起"
             onNextAction={() => setDialogueText('')}
+          />
+        ) : null}
+
+        {bedchamberGiftItemName && activeChamberPanel === 'main' && !activeMapLocation ? (
+          <GlobalDialogueStage
+            sceneLabel="寝殿连翘赠礼场景"
+            portraitLabel="连翘立绘"
+            portrait={
+              <AutoCutoutPortrait
+                src={LIANQIAO_PORTRAIT_SRC}
+                alt="连翘"
+                threshold={22}
+                sampleInset={18}
+                className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--miaoyin global-dialogue-stage__portrait-media--lianqiao"
+              />
+            }
+            ariaLabel="连翘寝殿赠礼"
+            className="global-dialogue-stage--miaoyin"
+            dialogueClassName="palace-dialogue-box--miaoyin-encounter"
+            characterIdentity="妙音堂伶人"
+            characterName="连翘"
+            content={`连翘托宫人把一卷新谱送到了寝殿门前。她只留下一句话：这折《${bedchamberGiftItemName}》你若肯细听，想来不会白费。`}
+            nextActionLabel="收下"
+            onNextAction={() => setBedchamberGiftItemName('')}
           />
         ) : null}
       </div>

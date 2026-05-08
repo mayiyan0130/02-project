@@ -3,6 +3,7 @@ import { ERROR_CODES, type ErrorEnvelope } from '../types/contracts';
 import {
   calcAgentRequestSchema,
   consortDialogueRequestSchema,
+  miaoyinAmbientRequestSchema,
   openingDialogueRequestSchema,
   relationshipJudgeRequestSchema,
   taiyiAmbientRequestSchema,
@@ -13,6 +14,8 @@ import type {
   CalcAgentResponse,
   ConsortDialogueRequest,
   ConsortDialogueResponse,
+  MiaoYinAmbientRequest,
+  MiaoYinAmbientResponse,
   NarrativeAgentResponse,
   OpeningDialogueRequest,
   OpeningDialogueResponse,
@@ -45,6 +48,9 @@ interface RouteDependencies {
   };
   templeAmbientService: {
     generate: (payload: TempleAmbientRequest) => Promise<TempleAmbientResponse>;
+  };
+  miaoyinAmbientService: {
+    generate: (payload: MiaoYinAmbientRequest) => Promise<MiaoYinAmbientResponse>;
   };
 }
 
@@ -156,6 +162,24 @@ export const registerAiRoutes = async (app: FastifyInstance, dependencies: Route
     }
 
     const result = await dependencies.templeAmbientService.generate(parsed.data);
+    return reply.code(200).send(result);
+  });
+
+  app.post('/api/v1/ai/miaoyin-ambient', async (request: FastifyRequest, reply: FastifyReply) => {
+    const parsed = miaoyinAmbientRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      const body: ErrorEnvelope = {
+        error: {
+          code: ERROR_CODES.INVALID_REQUEST,
+          message: '请求体不符合 MiaoYinAmbient 契约。',
+          retryable: false,
+          details: parsed.error.flatten(),
+        },
+      };
+      return reply.code(400).send(body);
+    }
+
+    const result = await dependencies.miaoyinAmbientService.generate(parsed.data);
     return reply.code(200).send(result);
   });
 

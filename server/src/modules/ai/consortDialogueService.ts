@@ -26,6 +26,11 @@ const isAlingContext = (payload: ConsortDialogueRequest): boolean => payload.con
 
 const isDangYiContext = (payload: ConsortDialogueRequest): boolean => payload.consortContext.name === '当一';
 
+const isLianQiaoContext = (payload: ConsortDialogueRequest): boolean => payload.consortContext.name === '连翘';
+
+const isEmperorContext = (payload: ConsortDialogueRequest): boolean =>
+  payload.consortContext.name === '容安' || payload.consortContext.rank === '皇帝';
+
 const selectByXun = <T,>(payload: ConsortDialogueRequest, variants: T[]): T =>
   variants[(payload.timeContext.month + payload.timeContext.xun + payload.history.length) % variants.length];
 
@@ -230,6 +235,90 @@ const buildDangYiFallbackDraft = (payload: ConsortDialogueRequest): FallbackDial
   };
 };
 
+const buildLianQiaoFallbackDraft = (payload: ConsortDialogueRequest): FallbackDialogueDraft => {
+  const options =
+    payload.actionId === 'gift-event'
+      ? [
+          { id: 'receive', label: '收下并谢她记挂', effectHint: '稳稳接住她的这一份心意。', fallbackToneTag: 'friendly' as const },
+          { id: 'tease', label: '借曲意轻轻逗她', effectHint: '若她愿接，最容易再往前半步。', fallbackToneTag: 'flirt' as const },
+          { id: 'hold', label: '只按礼谢过', effectHint: '把分寸守住，不把话说得太满。', fallbackToneTag: 'neutral' as const },
+        ]
+      : payload.actionId === 'meet-lianqiao'
+        ? [
+            { id: 'admire', label: '夸她收音极稳', effectHint: '更合她对真懂曲人的偏好。', fallbackToneTag: 'friendly' as const },
+            { id: 'join', label: '借曲意试探更近一步', effectHint: '若她心软，余韵会留得更长。', fallbackToneTag: 'flirt' as const },
+            { id: 'observe', label: '只说想再多听几回', effectHint: '把话留住，不急着靠近。', fallbackToneTag: 'neutral' as const },
+          ]
+        : [
+            { id: 'listen', label: '顺着曲理请教', effectHint: '更容易换来一句真回话。', fallbackToneTag: 'friendly' as const },
+            { id: 'probe', label: '借琴心试探她', effectHint: '看看她愿不愿意把话说深。', fallbackToneTag: 'neutral' as const },
+            { id: 'hold', label: '只按礼留一句称赞', effectHint: '不把心思露得太快。', fallbackToneTag: 'cold' as const },
+          ];
+
+  if (payload.topic === 'follow-up') {
+    return {
+      mode: 'line',
+      phase: 'finish',
+      text:
+        payload.actionId === 'gift-follow-up'
+          ? '连翘听完你这句，只把谱卷往你掌中轻轻一推：“娘娘既肯收，我便算没白走这一趟。往后若还有合你心意的，我仍替你留着。”'
+          : '连翘把最后一点余音也收进指尖，才低声道：“娘娘既听得明白，往后再来妙音堂，便不会只是过客。今日这一折，到这里就够了。”',
+      nextActionLabel: '收起',
+      sceneHint: '这一回话已收住，可以回到妙音堂主界面了。',
+      options: [],
+    };
+  }
+
+  return {
+    mode: 'branch',
+    phase: 'continue',
+    text:
+      payload.actionId === 'first-meet'
+        ? '一折将尽时，连翘先按住尚在余颤的琴弦，回身看你，语气轻得像怕惊散堂中余音：“娘娘连着来听了几回，想来不是只为散心。妙音堂里最怕的不是错音，是听不出轻重，却偏要装作真懂。”'
+        : payload.actionId === 'meet-lianqiao'
+          ? '堂中人声渐散，连翘把谱页合起，像是终于肯把视线真正落在你身上：“娘娘前后听到第六回，还肯来，便不是随意消磨。会听曲的人很多，能把一折里的呼吸与收放都听进去的人却少。若娘娘不嫌，我往后也愿替你多留一份好曲。”'
+          : payload.actionId === 'gift-event'
+            ? '连翘将一卷新谱递到你手边，声音比平日更轻：“前几日试出来一折新意，我想着娘娘也许会喜欢，便先替你留下了。曲子这种东西，若无人肯细听，再好也只像白白落在梁间。”'
+            : '连翘将指尖从弦上慢慢收回，先等堂中余音散净，才低声开口：“妙音堂看着热闹，其实人人都在守自己的节拍。娘娘若只是来听一折，我能陪；若想借曲声看人心，就得先看自己肯听到哪一步。”',
+    nextActionLabel: '收起',
+    sceneHint:
+      payload.actionId === 'meet-lianqiao'
+        ? '这一回以后，妙音堂主界面会永久留下连翘的入口。'
+        : payload.actionId === 'gift-event'
+          ? '这是连翘特意给你送来的曲谱。'
+          : payload.actionId === 'first-meet'
+            ? '这是你与连翘第一次在妙音堂正式照面。'
+            : '她的话像收弦那一下，轻，却分明留着后劲。',
+    options,
+  };
+};
+
+const buildEmperorFallbackDraft = (payload: ConsortDialogueRequest): FallbackDialogueDraft => {
+  if (payload.topic === 'follow-up') {
+    return {
+      mode: 'line',
+      phase: 'finish',
+      text: '容安听罢并未立刻多说，只把目光略略压低几分：“你这句回得还算有分寸。今夜之邀，朕记下了。至于该不该来，你回去再想一想。”',
+      nextActionLabel: '收起',
+      sceneHint: '这一回偶遇已经收束，但圣意并不会就此散去。',
+      options: [],
+    };
+  }
+
+  return {
+    mode: 'branch',
+    phase: 'continue',
+    text: '帘后拍板声刚歇，容安已在阶前站定。他没有立刻发问，只把目光从你眉眼间扫过，才淡淡道：“朕原只当你是来听个热闹，如今看来，你倒真能听出这一堂清音里的轻重。若你愿意，今夜之后可来养心殿，把这一折从头说给朕听。”',
+    nextActionLabel: '收起',
+    sceneHint: '圣意来得突然，回话的轻重会被记得很久。',
+    options: [
+      { id: 'accept', label: '顺势应下邀约', effectHint: '把姿态放柔，顺着圣意往下走。', fallbackToneTag: 'friendly' },
+      { id: 'tease', label: '借曲意轻轻回敬', effectHint: '暧昧余地更足，也更考验分寸。', fallbackToneTag: 'flirt' },
+      { id: 'cautious', label: '只依礼谢恩', effectHint: '不失体统，却会把距离留得更远。', fallbackToneTag: 'neutral' },
+    ],
+  };
+};
+
 const buildDefaultFallbackDraft = (payload: ConsortDialogueRequest): FallbackDialogueDraft => {
   const voiceHint = buildDefaultVoiceHint(payload);
 
@@ -306,15 +395,22 @@ const buildDefaultFallbackDraft = (payload: ConsortDialogueRequest): FallbackDia
 };
 
 const buildFallbackDialogue = (payload: ConsortDialogueRequest): ConsortDialogueResponse => {
-  const fallback = isDowagerContext(payload)
-    ? buildDowagerFallbackDraft(payload)
-    : isBuZiyouContext(payload)
-      ? buildBuZiyouFallbackDraft(payload)
-      : isAlingContext(payload)
-        ? buildAlingFallbackDraft(payload)
-        : isDangYiContext(payload)
-          ? buildDangYiFallbackDraft(payload)
-        : buildDefaultFallbackDraft(payload);
+  let fallback: FallbackDialogueDraft;
+  if (isDowagerContext(payload)) {
+    fallback = buildDowagerFallbackDraft(payload);
+  } else if (isBuZiyouContext(payload)) {
+    fallback = buildBuZiyouFallbackDraft(payload);
+  } else if (isAlingContext(payload)) {
+    fallback = buildAlingFallbackDraft(payload);
+  } else if (isDangYiContext(payload)) {
+    fallback = buildDangYiFallbackDraft(payload);
+  } else if (isLianQiaoContext(payload)) {
+    fallback = buildLianQiaoFallbackDraft(payload);
+  } else if (isEmperorContext(payload)) {
+    fallback = buildEmperorFallbackDraft(payload);
+  } else {
+    fallback = buildDefaultFallbackDraft(payload);
+  }
 
   return {
     mode: fallback.mode,
@@ -343,6 +439,14 @@ const violatesIdentityGuard = (payload: ConsortDialogueRequest, response: Consor
 
   if (isDangYiContext(payload)) {
     return response.speakerName !== '当一' || !/佛|香|殿|因果|静/u.test(text) || /妾/u.test(text);
+  }
+
+  if (isLianQiaoContext(payload)) {
+    return response.speakerName !== '连翘' || !/曲|弦|音|堂|谱/u.test(text) || /妾/u.test(text);
+  }
+
+  if (isEmperorContext(payload)) {
+    return response.speakerIdentity !== '皇帝' || response.speakerName !== '容安' || /妾/u.test(text);
   }
 
   return false;

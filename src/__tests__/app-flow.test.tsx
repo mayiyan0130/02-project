@@ -7,7 +7,7 @@ import App from '../App';
 import { getFavorTierByValue, STAMINA_INITIAL_PER_XUN } from '../config/constants';
 import { buildInitialBondProfile } from '../game/data/bondPresets';
 import { buildInitialConcubineRoster } from '../game/data/concubineRoster';
-import { cloneInitialInventory } from '../game/data/inventoryPresets';
+import { buildMusicScoreItem, cloneInitialInventory } from '../game/data/inventoryPresets';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
 
 const resetFlowStore = () => {
@@ -55,6 +55,15 @@ const resetFlowStore = () => {
       buZiyouMet: false,
       buZiyouFavor: 0,
       buZiyouAffinity: 0,
+    },
+    musicHallProgress: {
+      listenCount: 0,
+      strollCount: 0,
+      signUpCount: 0,
+      lianQiaoFirstMet: false,
+      lianQiaoMet: false,
+      lianQiaoFavor: 0,
+      lianQiaoAffection: 0,
     },
     templeProgress: {
       worshipCount: 0,
@@ -285,6 +294,194 @@ describe('App 主流程切换', () => {
       expect(useGameFlowStore.getState().inventory.find((item) => item.itemId === 'embroidered-sachet')?.quantity).toBe(2);
       expect(screen.getByText('当前银两：986')).toBeInTheDocument();
     });
+  });
+
+  it('妙音堂会显示基础按钮，并在结识连翘后开放曲谱报名', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    const score = buildMusicScoreItem('score-phoenix-return');
+    expect(score).not.toBeNull();
+
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'bedchamber',
+      scene: 'activity',
+      activeChamberPanel: 'main',
+      activeMapLocation: '妙音堂',
+      routeId: 'lanyinxuguo',
+      state: {
+        ...state.state,
+        routeId: 'lanyinxuguo',
+        name: '谢令仪',
+        residenceName: '椒房殿',
+        favor: 55,
+        flags: {
+          ...state.state.flags,
+          isLianQiaoMet: true,
+        },
+      },
+      hiddenStats: {
+        silver: 1000,
+        prestige: 2500,
+        stress: 30,
+        favor: 55,
+        trueHeart: 35,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '皇后',
+      },
+      inventory: [...cloneInitialInventory(), score!],
+      musicHallProgress: {
+        listenCount: 6,
+        strollCount: 0,
+        signUpCount: 0,
+        lianQiaoFirstMet: true,
+        lianQiaoMet: true,
+        lianQiaoFavor: 2,
+        lianQiaoAffection: 2,
+      },
+      time: {
+        year: 1,
+        month: 1,
+        xun: 1,
+        slotIndex: 1,
+        slot: '上午',
+        slotProgress: 0,
+      },
+    }));
+
+    render(<App />);
+
+    expect(await screen.findByRole('button', { name: '报名' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '听曲' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '闲逛' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '连翘' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '报名' }));
+    expect(await screen.findByRole('dialog', { name: '妙音堂曲谱报名' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /凤归云阙谱/ }));
+
+    await waitFor(() => {
+      expect(useGameFlowStore.getState().musicHallProgress.signUpCount).toBe(1);
+      expect(useGameFlowStore.getState().inventory.some((item) => item.itemId === 'score-phoenix-return')).toBe(false);
+    });
+  });
+
+  it('位分低于容华时不能进入华清池', async () => {
+    const defaultFavorTier = getFavorTierByValue(20);
+    useGameFlowStore.setState((state) => ({
+      ...state,
+      currentView: 'map-main',
+      scene: 'map',
+      activeChamberPanel: 'main',
+      activeMapLocation: undefined,
+      routeId: 'fushengrumeng',
+      state: {
+        ...state.state,
+        routeId: 'fushengrumeng',
+        name: '沈容儿',
+        residenceName: '储秀宫',
+        prestige: 300,
+        favor: 20,
+        flags: {
+          ...state.state.flags,
+          mapGuideFinished: true,
+        },
+      },
+      hiddenStats: {
+        silver: 300,
+        prestige: 300,
+        stress: 0,
+        favor: 20,
+        trueHeart: 20,
+        favorLabel: defaultFavorTier.label,
+        favorColor: defaultFavorTier.color,
+        initialRank: '才人',
+      },
+    }));
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '华清池' }));
+    fireEvent.click(await screen.findByRole('button', { name: '进入此处' }));
+
+    expect(await screen.findByText('贴身宫女 · 娇娇')).toBeInTheDocument();
+    expect(screen.getByText('小主，华清池乃是容华及以上位分方可享用之地，咱们还是先请回吧。')).toBeInTheDocument();
+    expect(useGameFlowStore.getState().activeMapLocation).toBeUndefined();
+  });
+
+  it('深夜时华清池双人沐浴邀请列表会出现连翘', async () => {
+    const defaultFavorTier = getFavorTierByValue(50);
+    useGameFlowStore.setState((state) => {
+      const nextConcubines = state.concubines.map((consort, index) =>
+        index === 0
+          ? {
+              ...consort,
+              stats: {
+                ...consort.stats,
+                affection: 50,
+                relationToPlayer: 45,
+              },
+            }
+          : consort,
+      );
+
+      return {
+        ...state,
+        currentView: 'bedchamber',
+        scene: 'activity',
+        activeChamberPanel: 'main',
+        activeMapLocation: '华清池',
+        routeId: 'lanyinxuguo',
+        state: {
+          ...state.state,
+          routeId: 'lanyinxuguo',
+          name: '谢令仪',
+          residenceName: '椒房殿',
+          prestige: 900,
+          favor: 50,
+          flags: {
+            ...state.state.flags,
+            isLianQiaoMet: true,
+          },
+        },
+        hiddenStats: {
+          silver: 1000,
+          prestige: 900,
+          stress: 30,
+          favor: 50,
+          trueHeart: 35,
+          favorLabel: defaultFavorTier.label,
+          favorColor: defaultFavorTier.color,
+          initialRank: '婕好',
+        },
+        concubines: nextConcubines,
+        musicHallProgress: {
+          listenCount: 6,
+          strollCount: 0,
+          signUpCount: 0,
+          lianQiaoFirstMet: true,
+          lianQiaoMet: true,
+          lianQiaoFavor: 5,
+          lianQiaoAffection: 40,
+        },
+        time: {
+          year: 1,
+          month: 2,
+          xun: 1,
+          slotIndex: 6,
+          slot: '深夜',
+          slotProgress: 0,
+        },
+      };
+    });
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '双人沐浴' }));
+
+    expect(await screen.findByRole('dialog', { name: '华清池邀请列表' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /连翘/ })).toBeInTheDocument();
   });
 
   it('尘缘夙错线的宫门会显示杜娘与阿翎入口', async () => {

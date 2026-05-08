@@ -317,6 +317,27 @@ export interface TaiyiAmbientResponse {
   text: string;
 }
 
+export interface MiaoYinAmbientRequest {
+  routeId: string;
+  playerName: string;
+  playerRank: string;
+  location: string;
+  action: 'listen' | 'stroll-idle' | 'sign-up';
+  stateHint?: string;
+  timeContext: {
+    year: number;
+    month: number;
+    xun: number;
+    slotIndex: number;
+    slot: string;
+    slotProgress?: number;
+  };
+}
+
+export interface MiaoYinAmbientResponse {
+  text: string;
+}
+
 export interface CalcEventPayload {
   traceId: string;
   cacheKey: string;

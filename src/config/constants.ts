@@ -170,6 +170,7 @@ export const PALACE_SIDE_HALL_MIN_RANK_NAME = '美人' as const;
 export const HOT_SPRING_MIN_RANK_NAME = '容华' as const;
 export const HOT_SPRING_SOLO_STAMINA_RECOVER = 3 as const;
 export const HOT_SPRING_SOLO_STRESS_REDUCE = 3 as const;
+export const HOT_SPRING_SHARED_AFFECTION_REQUIREMENT = 40 as const;
 export const HOT_SPRING_SHARED_FAVORABILITY_REQUIREMENT = 80 as const;
 export const HOT_SPRING_SHARED_FAVORABILITY_GAIN = 5 as const;
 export const HOT_SPRING_SHARED_AFFECTION_GAIN = 5 as const;

@@ -184,12 +184,14 @@ export interface BondInteractionOption {
   fallbackToneTag: RelationshipToneTag;
 }
 
-export type InventoryItemCategory = 'gift' | 'food' | 'medicine' | 'rare';
+export type InventoryItemCategory = 'gift' | 'food' | 'medicine' | 'rare' | 'music-score';
 export type InventoryItemRarity = 'green' | 'blue' | 'purple' | 'red';
 
 export interface InventoryItem {
+  id?: string;
   itemId: string;
   name: string;
+  color?: InventoryItemRarity;
   category: InventoryItemCategory;
   rarity: InventoryItemRarity;
   quantity: number;
@@ -268,6 +270,21 @@ export interface MedicalProgressState {
   lastEncounterNpcId?: string;
   lastToneTag?: RelationshipToneTag;
   lastAmbientText?: string;
+}
+
+export interface MusicHallProgressState {
+  listenCount: number;
+  strollCount: number;
+  signUpCount: number;
+  lianQiaoFirstMet: boolean;
+  lianQiaoMet: boolean;
+  lianQiaoFavor: number;
+  lianQiaoAffection: number;
+  lastEncounterNpcId?: string;
+  lastToneTag?: RelationshipToneTag;
+  lastAmbientText?: string;
+  lastGiftXunIndex?: number;
+  lastSubmittedMusicScoreId?: string;
 }
 
 export interface ResourceMappingEntry {

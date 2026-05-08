@@ -17,7 +17,15 @@ ET.register_namespace("w", W_NAMESPACE)
 
 
 def find_architecture_docx() -> Path:
-    matches = sorted(GAME_WORD_DIR.glob("*游戏架构目录*.docx"))
+    preferred = GAME_WORD_DIR / "游戏架构目录.docx"
+    if preferred.exists():
+        return preferred
+
+    matches = sorted(
+        p
+        for p in GAME_WORD_DIR.glob("*游戏架构目录*.docx")
+        if not p.name.endswith(".tmp.docx")
+    )
     if not matches:
         raise FileNotFoundError("未找到游戏架构目录 Word 文件")
     return matches[0]
