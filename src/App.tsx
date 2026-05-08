@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
+import { getDialogueRootStyle } from './config/dialogueConfig';
 import { useGameFlowStore } from './game/store/gameFlowStore';
 import { AttributeAssignmentView } from './views/AttributeAssignmentView';
 import { ChamberMainView } from './views/ChamberMainView';
@@ -10,6 +11,7 @@ import { StartScene } from './views/StartScene';
 export default function App() {
   const currentView = useGameFlowStore((state) => state.currentView);
   const setCurrentView = useGameFlowStore((state) => state.setCurrentView);
+  const dialogueRootStyle = getDialogueRootStyle();
 
   const renderCurrentView = () => {
     switch (currentView) {
@@ -42,10 +44,12 @@ export default function App() {
     <AnimatePresence mode="wait">
       <motion.div
         key={currentView}
+        data-dialogue-root="locked"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: currentView === 'start' ? 0.3 : 0.35 }}
+        style={dialogueRootStyle}
       >
         {renderCurrentView()}
       </motion.div>

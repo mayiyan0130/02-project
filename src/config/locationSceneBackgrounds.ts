@@ -1,6 +1,12 @@
 import type { MapAreaId } from '../game/types';
 
 export const HAREM_OVERVIEW_BACKGROUND = new URL('../../picture/background/背景.jpg', import.meta.url).href;
+export const PLAYER_STATS_BACKGROUND = new URL('../../picture/background/属性ui.jpg', import.meta.url).href;
+export const CHRONICLE_UI_BACKGROUND = new URL('../../picture/background/纪事ui.jpg', import.meta.url).href;
+export const MISC_INFO_UI_BACKGROUND = new URL('../../picture/background/其他信息.jpg', import.meta.url).href;
+export const BOND_UI_BACKGROUND = new URL('../../picture/background/情缘ui.jpg', import.meta.url).href;
+export const AFFAIRS_UI_BACKGROUND = new URL('../../picture/background/宫斗事务.jpg', import.meta.url).href;
+export const INVENTORY_UI_BACKGROUND = new URL('../../picture/background/道具.jpg', import.meta.url).href;
 
 const baohuadianBackground = new URL('../../picture/background/宝华殿.jpg', import.meta.url).href;
 const chuxiugongBackground = new URL('../../picture/background/储秀宫.jpg', import.meta.url).href;

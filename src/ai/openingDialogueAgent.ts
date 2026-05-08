@@ -1,6 +1,21 @@
 import type { DialogueDataEffects, DialogueOption, PalaceTimeState } from '../game/types';
+import { buildApiUrl } from './apiBaseUrl';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+export interface OpeningDialogueNpcContext {
+  npcId: string;
+  identity: string;
+  publicFace: string;
+  hiddenCore: string;
+  speechStyle: string[];
+  sceneDuty: string[];
+}
+
+export interface OpeningDialogueRouteContext {
+  playerRoleSummary: string;
+  routePressure: string;
+  mapFeatureSummary: string;
+  choiceFocus: string;
+}
 
 export interface OpeningDialogueRequestPayload {
   routeId: string;
@@ -29,6 +44,8 @@ export interface OpeningDialogueRequestPayload {
     stamina: number;
     stats: Record<string, number>;
   };
+  npcContext: OpeningDialogueNpcContext;
+  routeContext: OpeningDialogueRouteContext;
   timeContext: PalaceTimeState;
 }
 
@@ -47,7 +64,7 @@ export interface OpeningDialogueResponsePayload {
 export const requestOpeningDialogue = async (
   payload: OpeningDialogueRequestPayload,
 ): Promise<OpeningDialogueResponsePayload> => {
-  const response = await fetch(`${API_BASE_URL}/api/v1/ai/opening-dialogue`, {
+  const response = await fetch(buildApiUrl('/api/v1/ai/opening-dialogue'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

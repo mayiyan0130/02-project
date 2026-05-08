@@ -5,7 +5,7 @@ import { NpcId, RouteId, RouteScope, type NPC初始配置 } from './types';
 export const NPCS_CONFIG: Record<NpcId, NPC初始配置> = {
   [NpcId.YaoLinger]: {
     id: NpcId.YaoLinger,
-    姓名: '姚玲儿',
+    姓名: '姚铃儿',
     年龄: 19,
     基础好感值: -20,
     特殊剧情触发标志: '好感>80 && 倾情>60 时帮助玩家谋逆',

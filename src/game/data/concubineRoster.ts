@@ -1,3 +1,19 @@
+import {
+  FAVOR_TIER_TABLE,
+  LIFESPAN_LOSS_PER_MONTH_WHEN_STRESS_GT_THRESHOLD,
+  PLAYER_AMBITION_RANGE,
+  PLAYER_APPEARANCE_RANGE,
+  PLAYER_FAVOR_RANGE,
+  PLAYER_FORTUNE_RANGE,
+  PLAYER_HEALTH_RANGE,
+  PLAYER_INTRIGUE_RANGE,
+  PLAYER_STRESS_RANGE,
+  PLAYER_TEMPERAMENT_RANGE,
+  PRESTIGE_RANGE,
+  STRESS_THRESHOLD_LIFESPAN_LOSS,
+  getFavorTierByValue,
+  type FavorTierDefinition,
+} from '../../config/constants';
 import type { ConcubineProfile, ConcubineStatus, RouteId } from '../types';
 
 type WomenPortraitId =
@@ -66,27 +82,6 @@ const WOMEN_ASSET_EXT_BY_ID: Record<WomenPortraitId, 'png'> = {
   虞秋池: 'png',
 };
 
-const rankWeightMap: Record<string, number> = {
-  皇后: 110,
-  皇贵妃: 102,
-  贵妃: 96,
-  淑妃: 90,
-  德妃: 88,
-  贤妃: 86,
-  妃: 82,
-  昭仪: 78,
-  昭容: 74,
-  婕妤: 70,
-  嫔: 64,
-  贵人: 56,
-  美人: 50,
-  才人: 44,
-  宝林: 38,
-  常在: 32,
-  答应: 28,
-  庶人: 4,
-};
-
 const officialRankPaletteMap = {
   sovereign: { rankColor: '#FF0800', nameColor: '#FF5C57', accentColor: '#FF9A96' },
   high: { rankColor: '#E840B2', nameColor: '#EC67C2', accentColor: '#F3A0DA' },
@@ -95,15 +90,72 @@ const officialRankPaletteMap = {
   base: { rankColor: '#7C7B78', nameColor: '#989792', accentColor: '#C7C5C0' },
 } as const;
 
-const canonicalRanks = ['皇后', '皇贵妃', '贵妃', '淑妃', '德妃', '贤妃', '妃', '昭仪', '昭容', '婕妤', '嫔', '贵人', '美人', '才人', '宝林', '常在', '答应', '庶人'] as const;
-// The docs define health risk bands but do not give a dedicated panel illness cutoff.
-// Reuse the documented low-health band and surface it as the visible "有恙" state.
+type RankPaletteKey = keyof typeof officialRankPaletteMap;
+
+interface ConcubineRankRule {
+  rankLabel: string;
+  minPrestige: number;
+  maxPrestige: number;
+  paletteKey: RankPaletteKey;
+  weight: number;
+}
+
+const CONCUBINE_PRESTIGE_RULES: readonly ConcubineRankRule[] = [
+  { rankLabel: '皇后', minPrestige: 2500, maxPrestige: PRESTIGE_RANGE[1], paletteKey: 'sovereign', weight: 180 },
+  { rankLabel: '皇贵妃', minPrestige: 2400, maxPrestige: 2499, paletteKey: 'sovereign', weight: 172 },
+  { rankLabel: '贵妃', minPrestige: 2100, maxPrestige: 2399, paletteKey: 'high', weight: 166 },
+  { rankLabel: '淑妃', minPrestige: 1800, maxPrestige: 2099, paletteKey: 'high', weight: 160 },
+  { rankLabel: '德妃', minPrestige: 1800, maxPrestige: 2099, paletteKey: 'high', weight: 160 },
+  { rankLabel: '贤妃', minPrestige: 1800, maxPrestige: 2099, paletteKey: 'high', weight: 160 },
+  { rankLabel: '妃', minPrestige: 1500, maxPrestige: 1799, paletteKey: 'high', weight: 152 },
+  { rankLabel: '昭仪', minPrestige: 1300, maxPrestige: 1499, paletteKey: 'high', weight: 146 },
+  { rankLabel: '昭容', minPrestige: 1200, maxPrestige: 1299, paletteKey: 'high', weight: 142 },
+  { rankLabel: '贵嫔', minPrestige: 1100, maxPrestige: 1199, paletteKey: 'high', weight: 138 },
+  { rankLabel: '婕妤', minPrestige: 900, maxPrestige: 1099, paletteKey: 'middle', weight: 130 },
+  { rankLabel: '容华', minPrestige: 750, maxPrestige: 899, paletteKey: 'middle', weight: 122 },
+  { rankLabel: '嫔', minPrestige: 600, maxPrestige: 749, paletteKey: 'middle', weight: 116 },
+  { rankLabel: '贵人', minPrestige: 450, maxPrestige: 599, paletteKey: 'low', weight: 108 },
+  { rankLabel: '美人', minPrestige: 350, maxPrestige: 449, paletteKey: 'low', weight: 102 },
+  { rankLabel: '才人', minPrestige: 250, maxPrestige: 349, paletteKey: 'low', weight: 96 },
+  { rankLabel: '常在', minPrestige: 200, maxPrestige: 249, paletteKey: 'base', weight: 90 },
+  { rankLabel: '御女', minPrestige: 150, maxPrestige: 199, paletteKey: 'base', weight: 88 },
+  { rankLabel: '选侍', minPrestige: 100, maxPrestige: 149, paletteKey: 'base', weight: 86 },
+  { rankLabel: '答应', minPrestige: 60, maxPrestige: 99, paletteKey: 'base', weight: 84 },
+  { rankLabel: '更衣', minPrestige: 30, maxPrestige: 59, paletteKey: 'base', weight: 82 },
+  { rankLabel: '官女子', minPrestige: 0, maxPrestige: 29, paletteKey: 'base', weight: 80 },
+  { rankLabel: '庶人', minPrestige: PRESTIGE_RANGE[0], maxPrestige: -1, paletteKey: 'base', weight: 20 },
+] as const;
+
+const canonicalRanks = [
+  '皇后',
+  '皇贵妃',
+  '贵妃',
+  '淑妃',
+  '德妃',
+  '贤妃',
+  '妃',
+  '昭仪',
+  '昭容',
+  '贵嫔',
+  '婕妤',
+  '容华',
+  '嫔',
+  '贵人',
+  '美人',
+  '才人',
+  '常在',
+  '御女',
+  '选侍',
+  '答应',
+  '更衣',
+  '官女子',
+  '庶人',
+] as const;
+
 const liveStatusIllHealthThreshold = 400;
 // Special NPCs and authority figures should never be treated as concubine-list members.
 const NON_CONCUBINE_NAMES = new Set(['布自游', '卢安平', '当一', '杜娘', '娇娇', '简宁', '连翘']);
 const NON_CONCUBINE_PATTERNS = [/太后/];
-
-const normalizeConcubineHealthValue = (health: number): number => (health > 100 ? health : health * 10);
 
 const getRosterIdentityTokens = (entity: { name: string; portraitId: string }): string[] =>
   [String(entity.name ?? '').trim(), String(entity.portraitId ?? '').trim()].filter((token) => token.length > 0);
@@ -123,24 +175,102 @@ const getCanonicalRankLabel = (label: string): string => {
   return normalized;
 };
 
+const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+
+const normalizeThousandScaleStat = (value: number): number => (Math.abs(value) > 100 ? value : value * 10);
+
+const formatOneDecimal = (value: number): number => Number(Number(value).toFixed(1));
+
+const FAVOR_TIER_LIMITS = FAVOR_TIER_TABLE.filter((tier) => tier.maxCount > 0)
+  .sort((left, right) => right.range[0] - left.range[0])
+  .map((tier) => ({
+    ...tier,
+    demoteTo: tier.range[0] - 1,
+  }));
+
+const getOccupiedFavorTierCounts = (favorValues: readonly number[]): Map<FavorTierDefinition['label'], number> => {
+  const counts = new Map<FavorTierDefinition['label'], number>();
+  favorValues.forEach((favor) => {
+    const tier = getFavorTierByValue(Number(favor ?? 0));
+    if (tier.maxCount <= 0) {
+      return;
+    }
+    counts.set(tier.label, (counts.get(tier.label) ?? 0) + 1);
+  });
+  return counts;
+};
+
+const normalizeConcubineStats = (stats: ConcubineProfile['stats']): ConcubineProfile['stats'] => ({
+  prestige: clamp(Number(stats.prestige ?? 0), PRESTIGE_RANGE[0], PRESTIGE_RANGE[1]),
+  favor: clamp(Number(stats.favor ?? 0), PLAYER_FAVOR_RANGE[0], PLAYER_FAVOR_RANGE[1]),
+  familyInfluence: clamp(Number(stats.familyInfluence ?? 0), 0, 100),
+  health: formatOneDecimal(clamp(normalizeThousandScaleStat(Number(stats.health ?? 0)), PLAYER_HEALTH_RANGE[0], PLAYER_HEALTH_RANGE[1])),
+  appearance: formatOneDecimal(
+    clamp(normalizeThousandScaleStat(Number(stats.appearance ?? 0)), PLAYER_APPEARANCE_RANGE[0], PLAYER_APPEARANCE_RANGE[1]),
+  ),
+  relationToPlayer: clamp(Number(stats.relationToPlayer ?? 0), -100, 100),
+  childrenCount: clamp(Math.round(Number(stats.childrenCount ?? 0)), 0, 10),
+  ambition: clamp(Number(stats.ambition ?? 0), PLAYER_AMBITION_RANGE[0], PLAYER_AMBITION_RANGE[1]),
+  stress: clamp(Number(stats.stress ?? 0), PLAYER_STRESS_RANGE[0], PLAYER_STRESS_RANGE[1]),
+  intrigue: formatOneDecimal(
+    clamp(normalizeThousandScaleStat(Number(stats.intrigue ?? 0)), PLAYER_INTRIGUE_RANGE[0], PLAYER_INTRIGUE_RANGE[1]),
+  ),
+  temperament: formatOneDecimal(
+    clamp(normalizeThousandScaleStat(Number(stats.temperament ?? 0)), PLAYER_TEMPERAMENT_RANGE[0], PLAYER_TEMPERAMENT_RANGE[1]),
+  ),
+  affection: clamp(Number(stats.affection ?? 0), 0, 100),
+  fortune: clamp(Number(stats.fortune ?? 0), PLAYER_FORTUNE_RANGE[0], PLAYER_FORTUNE_RANGE[1]),
+});
+
+const getPrestigeRuleByRankLabel = (rankLabel: string): ConcubineRankRule | undefined =>
+  CONCUBINE_PRESTIGE_RULES.find((rule) => rule.rankLabel === getCanonicalRankLabel(rankLabel));
+
+const getPrestigeRuleByValue = (prestige: number, preferredRankLabel?: string): ConcubineRankRule => {
+  const matchedRule = CONCUBINE_PRESTIGE_RULES.find((rule) => prestige >= rule.minPrestige && prestige <= rule.maxPrestige);
+  if (!matchedRule) {
+    return CONCUBINE_PRESTIGE_RULES[CONCUBINE_PRESTIGE_RULES.length - 1];
+  }
+
+  const preferredRule = preferredRankLabel ? getPrestigeRuleByRankLabel(preferredRankLabel) : undefined;
+  if (
+    preferredRule &&
+    preferredRule.minPrestige === matchedRule.minPrestige &&
+    preferredRule.maxPrestige === matchedRule.maxPrestige
+  ) {
+    return preferredRule;
+  }
+
+  return matchedRule;
+};
+
+const resolveGeneratedPrestige = (rankLabel: string, random: () => number): number => {
+  const rule = getPrestigeRuleByRankLabel(rankLabel) ?? CONCUBINE_PRESTIGE_RULES[CONCUBINE_PRESTIGE_RULES.length - 1];
+  if (rule.maxPrestige <= rule.minPrestige) {
+    return rule.minPrestige;
+  }
+  return clamp(rule.minPrestige + Math.round(random() * (rule.maxPrestige - rule.minPrestige)), rule.minPrestige, rule.maxPrestige);
+};
+
+export const normalizeConcubineProfile = (consort: ConcubineProfile): ConcubineProfile => {
+  const normalized: ConcubineProfile = {
+    ...consort,
+    rankLabel: getCanonicalRankLabel(consort.rankLabel),
+    stats: normalizeConcubineStats(consort.stats),
+    allies: consort.allies ?? [],
+    rivals: consort.rivals ?? [],
+  };
+
+  return {
+    ...normalized,
+    stateLabel: getConcubineConditionLabel(normalized),
+  };
+};
+
 const isConcubineIll = (consort: ConcubineProfile): boolean =>
-  consort.conditionFlags?.illness === true || normalizeConcubineHealthValue(consort.stats.health) <= liveStatusIllHealthThreshold;
+  consort.conditionFlags?.illness === true || Number(consort.stats.health) <= liveStatusIllHealthThreshold;
 
 const getRankTierKey = (rankLabel: string): keyof typeof officialRankPaletteMap => {
-  const rank = getCanonicalRankLabel(rankLabel);
-  if (rank === '皇后' || rank === '皇贵妃') {
-    return 'sovereign';
-  }
-  if (['贵妃', '淑妃', '德妃', '贤妃', '妃'].includes(rank)) {
-    return 'high';
-  }
-  if (['昭仪', '昭容', '婕妤', '嫔'].includes(rank)) {
-    return 'middle';
-  }
-  if (['贵人', '美人', '才人', '宝林'].includes(rank)) {
-    return 'low';
-  }
-  return 'base';
+  return getPrestigeRuleByRankLabel(rankLabel)?.paletteKey ?? 'base';
 };
 
 export const getConcubineDisplayRankText = (consort: ConcubineProfile): string => {
@@ -150,13 +280,33 @@ export const getConcubineDisplayRankText = (consort: ConcubineProfile): string =
   if (consort.status === 'deceased') {
     return consort.posthumousTitle ?? consort.rankLabel;
   }
-  return consort.rankLabel;
+  return getPrestigeRuleByValue(Number(consort.stats.prestige ?? 0), consort.rankLabel).rankLabel;
 };
+
+export const getConcubineRankWeightByLabel = (rankLabel: string): number =>
+  getPrestigeRuleByRankLabel(rankLabel)?.weight ?? 0;
 
 export const getConcubineRankPalette = (
   consort: ConcubineProfile,
 ): { rankColor: string; nameColor: string; accentColor: string } =>
   officialRankPaletteMap[getRankTierKey(getConcubineDisplayRankText(consort))];
+
+export const getConcubineRankShiftNotice = (consort: ConcubineProfile): string | null => {
+  if (consort.status !== 'live') {
+    return null;
+  }
+
+  const explicitRank = getCanonicalRankLabel(consort.rankLabel);
+  const prestigeRank = getConcubineDisplayRankText(consort);
+  if (explicitRank === prestigeRank) {
+    return null;
+  }
+
+  return `声望波动触发位分重算：${explicitRank} → ${prestigeRank}`;
+};
+
+export const getConcubineFavorTier = (consort: ConcubineProfile): FavorTierDefinition =>
+  getFavorTierByValue(Number(consort.stats.favor ?? 0));
 
 export const getConcubineConditionLabel = (consort: ConcubineProfile): string => {
   if (consort.status === 'deceased') {
@@ -177,34 +327,99 @@ export const getConcubineConditionLabel = (consort: ConcubineProfile): string =>
   return '寻常';
 };
 
+export const applyConcubinePressureHealthPenalty = (consort: ConcubineProfile, xunSteps = 1): ConcubineProfile => {
+  if (consort.status !== 'live' || Number(consort.stats.stress) <= STRESS_THRESHOLD_LIFESPAN_LOSS || xunSteps <= 0) {
+    return consort;
+  }
+
+  const nextHealth = formatOneDecimal(
+    clamp(
+      Number(consort.stats.health) - LIFESPAN_LOSS_PER_MONTH_WHEN_STRESS_GT_THRESHOLD * xunSteps,
+      PLAYER_HEALTH_RANGE[0],
+      PLAYER_HEALTH_RANGE[1],
+    ),
+  );
+
+  if (nextHealth === Number(consort.stats.health)) {
+    return consort;
+  }
+
+  return normalizeConcubineProfile({
+    ...consort,
+    stats: {
+      ...consort.stats,
+      health: nextHealth,
+    },
+  });
+};
+
+export const enforceConcubineFavorTierCaps = (
+  roster: ConcubineProfile[],
+  occupiedFavorValues: readonly number[] = [],
+): ConcubineProfile[] => {
+  const normalizedRoster = roster.map(normalizeConcubineProfile);
+  const nextRoster = [...normalizedRoster];
+  const occupiedCounts = getOccupiedFavorTierCounts(occupiedFavorValues);
+
+  for (const tier of FAVOR_TIER_LIMITS) {
+    const availableCount = Math.max(0, tier.maxCount - (occupiedCounts.get(tier.label) ?? 0));
+    const matchingIndexes = nextRoster
+      .map((consort, index) => ({ consort, index }))
+      .filter(({ consort }) => consort.status === 'live')
+      .filter(({ consort }) => {
+        const favor = Number(consort.stats.favor ?? 0);
+        return favor >= tier.range[0] && favor <= tier.range[1];
+      })
+      .sort((left, right) => {
+        const favorDelta = Number(right.consort.stats.favor ?? 0) - Number(left.consort.stats.favor ?? 0);
+        if (favorDelta !== 0) {
+          return favorDelta;
+        }
+        return Number(right.consort.stats.prestige ?? 0) - Number(left.consort.stats.prestige ?? 0);
+      });
+
+    matchingIndexes.slice(availableCount).forEach(({ consort, index }) => {
+      nextRoster[index] = normalizeConcubineProfile({
+        ...consort,
+        stats: {
+          ...consort.stats,
+          favor: clamp(tier.demoteTo, PLAYER_FAVOR_RANGE[0], PLAYER_FAVOR_RANGE[1]),
+        },
+      });
+    });
+  }
+
+  return nextRoster;
+};
+
 const ROUTE_FIXED_CONSORTS: Record<RouteId, readonly ConcubineSeed[]> = {
   lanyinxuguo: [
     {
       routeScope: 'lanyinxuguo',
       portraitId: '姚铃儿',
-      name: '姚铃儿',
+    name: '姚铃儿',
       rankLabel: '贵妃',
       status: 'live',
-      residence: '昭阳宫主殿',
+      residence: '长春宫主殿',
       stateLabel: '寻常',
       age: 19,
       familyBackground: '三品文官嫡女',
-      personality: '骄纵傲慢',
-      summary: '和皇帝是青梅竹马的表兄妹，对玩家的后位始终不服，也最容易因争宠起醋意。',
+      personality: '骄矜、好胜、重脸面、嫉妒、权位',
+      summary: '贵妃，十九岁，三品文官嫡女，得宠而高傲，极重体面。她与皇帝有旧情，前期把后宫权位看得极重，中后期也可能因敬重或利益而重整立场。',
       stats: {
-        prestige: 90,
-        favor: 84,
-        familyInfluence: 88,
-        health: 76,
-        appearance: 92,
+        prestige: 2180,
+        favor: 72,
+        familyInfluence: 86,
+        health: 720,
+        appearance: 860,
         relationToPlayer: -20,
         childrenCount: 1,
-        ambition: 78,
-        stress: 24,
-        intrigue: 81,
-        temperament: 88,
+        ambition: 48,
+        stress: 32,
+        intrigue: 780,
+        temperament: 780,
         affection: 0,
-        fortune: 55,
+        fortune: 8,
       },
     },
     {
@@ -213,26 +428,26 @@ const ROUTE_FIXED_CONSORTS: Record<RouteId, readonly ConcubineSeed[]> = {
       name: '江晚晚',
       rankLabel: '淑妃',
       status: 'live',
-      residence: '长春宫主殿',
+      residence: '钟粹宫主殿',
       stateLabel: '寻常',
       age: 22,
       familyBackground: '四品文官庶女',
-      personality: '温柔知性',
-      summary: '曾是东宫旧人，表面温和周全，真实立场最难被人看透，对玩家暂时保持中立。',
+      personality: '清醒、克制、守密、温柔、敏锐',
+      summary: '淑妃，二十二岁，四品文官庶女，端方从容，知礼寡言。她早已看透帝王与宫闱本质，擅守秘密，也最难被寻常示好撬开真心。',
       stats: {
-        prestige: 82,
-        favor: 70,
-        familyInfluence: 72,
-        health: 71,
-        appearance: 84,
-        relationToPlayer: 10,
+        prestige: 1860,
+        favor: 48,
+        familyInfluence: 70,
+        health: 690,
+        appearance: 760,
+        relationToPlayer: 12,
         childrenCount: 0,
-        ambition: 66,
-        stress: 30,
-        intrigue: 73,
-        temperament: 82,
+        ambition: 22,
+        stress: 18,
+        intrigue: 860,
+        temperament: 880,
         affection: 0,
-        fortune: 58,
+        fortune: 16,
       },
     },
     {
@@ -241,112 +456,84 @@ const ROUTE_FIXED_CONSORTS: Record<RouteId, readonly ConcubineSeed[]> = {
       name: '柳仪芳',
       rankLabel: '美人',
       status: 'live',
-      residence: '玉清宫西偏殿',
+      residence: '延禧宫东偏殿',
       stateLabel: '寻常',
       age: 18,
-      familyBackground: '商贾之女，原本是妙音堂宫女',
-      personality: '安静内敛',
-      summary: '长相酷似玩家，被皇帝宠幸后顺势稳住地位，对玩家始终恭敬感恩，不主动挑衅。',
+      familyBackground: '商贾之女',
+      personality: '温顺、钦慕、主动、体贴、敏感',
+      summary: '美人，十八岁，商贾之女，表面安静知趣。她对情感与自我认同都格外敏感，常把温顺与体贴藏在最细微的照拂里。',
       stats: {
-        prestige: 64,
-        favor: 42,
-        familyInfluence: 62,
-        health: 80,
-        appearance: 79,
-        relationToPlayer: 40,
+        prestige: 390,
+        favor: 56,
+        familyInfluence: 42,
+        health: 640,
+        appearance: 830,
+        relationToPlayer: 45,
         childrenCount: 0,
-        ambition: 32,
-        stress: 18,
-        intrigue: 48,
-        temperament: 81,
-        affection: 20,
-        fortune: 66,
+        ambition: 14,
+        stress: 24,
+        intrigue: 520,
+        temperament: 690,
+        affection: 30,
+        fortune: 12,
       },
     },
   ],
   fushengrumeng: [
     {
       routeScope: 'fushengrumeng',
+      portraitId: '年欣兰',
+      name: '年欣兰',
+      rankLabel: '妃',
+      status: 'live',
+      residence: '启祥宫主殿',
+      stateLabel: '寻常',
+      age: 20,
+      familyBackground: '四品武将嫡女',
+      personality: '傲娇、嘴硬、嫉妒、试探、不服软',
+      summary: '妃位，二十岁，四品武将嫡女，最爱拿规矩压人，看似总在挑刺，实则把旧友、脸面与不肯认输都压在心口。',
+      stats: {
+        prestige: 1580,
+        favor: 49,
+        familyInfluence: 74,
+        health: 730,
+        appearance: 780,
+        relationToPlayer: -8,
+        childrenCount: 0,
+        ambition: 24,
+        stress: 20,
+        intrigue: 610,
+        temperament: 760,
+        affection: 0,
+        fortune: 10,
+      },
+    },
+    {
+      routeScope: 'fushengrumeng',
       portraitId: '沈妙清',
       name: '沈妙清',
       rankLabel: '常在',
       status: 'live',
-      residence: '披香殿主殿',
+      residence: '储秀宫东偏殿',
       stateLabel: '寻常',
       age: 15,
       familyBackground: '六品武将嫡女',
-      personality: '清冷',
-      summary: '因玩家而入宫的旧友，是浮生如梦路线最直接的情感锚点，也最容易被后宫裹挟。',
+      personality: '清冷、护短、跟随、寡言、认死理',
+      summary: '常在，十五岁，六品武将嫡女，表面安静冷淡，骨子里却极护短。她入宫后的许多选择都系在旧情旧义上，也最容易在风浪里同人并肩。',
       stats: {
-        prestige: 78,
-        favor: 68,
-        familyInfluence: 70,
-        health: 74,
-        appearance: 88,
-        relationToPlayer: 70,
+        prestige: 215,
+        favor: 22,
+        familyInfluence: 58,
+        health: 710,
+        appearance: 700,
+        relationToPlayer: 78,
         childrenCount: 0,
-        ambition: 62,
-        stress: 27,
-        intrigue: 69,
-        temperament: 87,
-        affection: 60,
-        fortune: 61,
-      },
-    },
-    {
-      routeScope: 'fushengrumeng',
-      portraitId: '姚铃儿',
-      name: '姚铃儿',
-      rankLabel: '贵妃',
-      status: 'live',
-      residence: '昭阳宫主殿',
-      stateLabel: '寻常',
-      age: 19,
-      familyBackground: '镇北将门嫡女',
-      personality: '娇俏乖滑',
-      summary: '最会在一片笑语里伸手落子，宠爱越盛，她越从容。',
-      stats: {
-        prestige: 92,
-        favor: 86,
-        familyInfluence: 88,
-        health: 75,
-        appearance: 92,
-        relationToPlayer: -14,
-        childrenCount: 1,
-        ambition: 80,
-        stress: 22,
-        intrigue: 82,
-        temperament: 89,
-        affection: 43,
-        fortune: 54,
-      },
-    },
-    {
-      routeScope: 'fushengrumeng',
-      portraitId: '裴静姝',
-      name: '裴静姝',
-      rankLabel: '婕妤',
-      status: 'live',
-      residence: '永宁宫东偏殿',
-      stateLabel: '寻常',
-      age: 20,
-      familyBackground: '京兆裴氏嫡次女',
-      personality: '端谨疏淡',
-      summary: '表面上离纷争最远，实则对宫里风向看得极准。',
-      stats: {
-        prestige: 70,
-        favor: 38,
-        familyInfluence: 77,
-        health: 78,
-        appearance: 75,
-        relationToPlayer: 12,
-        childrenCount: 0,
-        ambition: 44,
-        stress: 20,
-        intrigue: 58,
-        temperament: 84,
-        affection: 16,
-        fortune: 64,
+        ambition: 6,
+        stress: 14,
+        intrigue: 430,
+        temperament: 750,
+        affection: 52,
+        fortune: 20,
       },
     },
   ],
@@ -357,168 +544,56 @@ const ROUTE_FIXED_CONSORTS: Record<RouteId, readonly ConcubineSeed[]> = {
       name: '陈婉宁',
       rankLabel: '妃',
       status: 'live',
-      residence: '昭华殿主殿',
+      residence: '昭阳宫主殿',
       stateLabel: '寻常',
       age: 20,
       familyBackground: '二品文官庶女',
-      personality: '佛口蛇心伪善',
-      summary: '影落掖庭路线的核心对手与旧案枢纽，为自身利益不择手段，却也会在情与利之间摇摆。',
+      personality: '端方、克制、温柔、封口、动摇',
+      summary: '妃位，二十岁，二品文官庶女，说话得体，也最懂分寸。她知晓旧案与旧债，却总把真正的摇摆、心软与背离都藏在温柔之后。',
       stats: {
-        prestige: 84,
-        favor: 52,
-        familyInfluence: 80,
-        health: 82,
-        appearance: 86,
+        prestige: 1680,
+        favor: 58,
+        familyInfluence: 78,
+        health: 760,
+        appearance: 810,
         relationToPlayer: 0,
-        childrenCount: 1,
-        ambition: 54,
-        stress: 25,
-        intrigue: 64,
-        temperament: 88,
+        childrenCount: 0,
+        ambition: 46,
+        stress: 22,
+        intrigue: 900,
+        temperament: 840,
         affection: 0,
-        fortune: 63,
-      },
-    },
-    {
-      routeScope: 'yingluoyeting',
-      portraitId: '顾雨杏',
-      name: '顾雨杏',
-      rankLabel: '嫔',
-      status: 'live',
-      residence: '永和宫西偏殿',
-      stateLabel: '寻常',
-      age: 18,
-      familyBackground: '武门旁支之女',
-      personality: '明艳爽利',
-      summary: '说话快，出手也快，最不耐烦虚与委蛇。',
-      stats: {
-        prestige: 74,
-        favor: 62,
-        familyInfluence: 68,
-        health: 85,
-        appearance: 87,
-        relationToPlayer: -6,
-        childrenCount: 0,
-        ambition: 58,
-        stress: 32,
-        intrigue: 55,
-        temperament: 72,
-        affection: 24,
-        fortune: 60,
-      },
-    },
-    {
-      routeScope: 'yingluoyeting',
-      portraitId: '容可儿',
-      name: '容可儿',
-      rankLabel: '贵人',
-      status: 'live',
-      residence: '临华殿东偏殿',
-      stateLabel: '寻常',
-      age: 17,
-      familyBackground: '商贾义女',
-      personality: '甜软机敏',
-      summary: '惯会察言观色，谁都不得罪，却也从不轻易吃亏。',
-      stats: {
-        prestige: 60,
-        favor: 34,
-        familyInfluence: 48,
-        health: 74,
-        appearance: 83,
-        relationToPlayer: 18,
-        childrenCount: 0,
-        ambition: 52,
-        stress: 21,
-        intrigue: 61,
-        temperament: 70,
-        affection: 14,
-        fortune: 72,
+        fortune: 6,
       },
     },
   ],
   chenyuansucuo: [
     {
       routeScope: 'chenyuansucuo',
-      portraitId: '崔令蓉',
-      name: '崔令蓉',
-      rankLabel: '嫔',
+      portraitId: '裴静姝',
+      name: '杜云嫣',
+      rankLabel: '贵嫔',
       status: 'live',
-      residence: '启祥宫主殿',
-      stateLabel: '寻常',
-      age: 21,
-      familyBackground: '陇右世家旁支嫡女',
-      personality: '冷静沉着',
-      summary: '不爱在明处喧哗，很多事总等到最后一步才真正出手。',
-      stats: {
-        prestige: 76,
-        favor: 48,
-        familyInfluence: 74,
-        health: 73,
-        appearance: 78,
-        relationToPlayer: -4,
-        childrenCount: 1,
-        ambition: 70,
-        stress: 29,
-        intrigue: 82,
-        temperament: 77,
-        affection: 19,
-        fortune: 52,
-      },
-    },
-    {
-      routeScope: 'chenyuansucuo',
-      portraitId: '年欣兰',
-      name: '年欣兰',
-      rankLabel: '婕妤',
-      status: 'live',
-      residence: '钟粹宫东偏殿',
+      residence: '永和宫主殿',
       stateLabel: '寻常',
       age: 19,
-      familyBackground: '边镇武家庶女',
-      personality: '克制隐忍',
-      summary: '看着总在退让，其实把每一次吃亏都记在心里。',
+      familyBackground: '江南名门嫡女',
+      personality: '娇气、病弱、依赖、体贴、成全',
+      summary: '贵嫔，十九岁，江南名门嫡女，娇气怕苦，也最怕冷。她身体一向不好，因此格外贪恋陪伴，最终却往往把不舍都化作成全。',
       stats: {
-        prestige: 72,
-        favor: 32,
-        familyInfluence: 69,
-        health: 82,
-        appearance: 74,
-        relationToPlayer: 6,
-        childrenCount: 0,
-        ambition: 63,
-        stress: 36,
-        intrigue: 67,
-        temperament: 68,
-        affection: 12,
-        fortune: 49,
-      },
-    },
-    {
-      routeScope: 'chenyuansucuo',
-      portraitId: '顾雨杏',
-      name: '顾雨杏',
-      rankLabel: '美人',
-      status: 'live',
-      residence: '永和宫西偏殿',
-      stateLabel: '寻常',
-      age: 18,
-      familyBackground: '武门旁支之女',
-      personality: '明艳爽利',
-      summary: '脾性直，锋芒也直，最见不得背后做局的人。',
-      stats: {
-        prestige: 66,
-        favor: 38,
-        familyInfluence: 66,
-        health: 84,
-        appearance: 86,
-        relationToPlayer: -2,
-        childrenCount: 0,
-        ambition: 54,
-        stress: 33,
-        intrigue: 52,
-        temperament: 71,
-        affection: 13,
-        fortune: 58,
+        prestige: 1180,
+        favor: 44,
+        familyInfluence: 78,
+        health: 420,
+        appearance: 820,
+        relationToPlayer: 32,
+        childrenCount: 1,
+        ambition: 8,
+        stress: 26,
+        intrigue: 420,
+        temperament: 870,
+        affection: 10,
+        fortune: 18,
       },
     },
   ],
@@ -879,10 +954,8 @@ const createSeededRandom = (seedSource: string): (() => number) => {
   };
 };
 
-const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
-
-const jitterStat = (value: number, random: () => number, spread = 8): number =>
-  clamp(value + Math.round((random() - 0.5) * spread * 2), 0, 100);
+const jitterStat = (value: number, random: () => number, spread: number, min: number, max: number): number =>
+  clamp(value + Math.round((random() - 0.5) * spread * 2), min, max);
 
 const pickOne = <T,>(items: readonly T[], random: () => number): T =>
   items[Math.min(items.length - 1, Math.floor(random() * items.length))];
@@ -902,17 +975,13 @@ const createConcubineFromSeed = (
   idPrefix: string,
   index: number,
 ): ConcubineProfile => {
-  const consort: ConcubineProfile = {
+  return normalizeConcubineProfile({
     ...seed,
     id: `${idPrefix}-${seed.portraitId}-${index}`,
     source,
     allies: seed.allies ?? [],
     rivals: seed.rivals ?? [],
-  };
-  return {
-    ...consort,
-    stateLabel: getConcubineConditionLabel(consort),
-  };
+  });
 };
 
 const createGeneratedConcubine = (
@@ -927,10 +996,10 @@ const createGeneratedConcubine = (
     23,
   );
   const rankLabel = pickOne(template.possibleRanks, random);
-  const favor = jitterStat(template.stats.favor, random, 10);
+  const favor = jitterStat(template.stats.favor, random, 10, PLAYER_FAVOR_RANGE[0], PLAYER_FAVOR_RANGE[1]);
   const childrenCount =
     template.stats.childrenCount > 0 ? clamp(template.stats.childrenCount + Math.round(random() - 0.45), 0, 3) : 0;
-  const consort: ConcubineProfile = {
+  return normalizeConcubineProfile({
     id: `generated-${routeId}-${template.portraitId}-${index}`,
     routeScope: routeId,
     portraitId: template.portraitId,
@@ -945,28 +1014,41 @@ const createGeneratedConcubine = (
     summary: template.summary,
     source: 'generated',
     stats: {
-      prestige: jitterStat(template.stats.prestige, random),
+      prestige: resolveGeneratedPrestige(rankLabel, random),
       favor,
-      familyInfluence: jitterStat(template.stats.familyInfluence, random, 6),
-      health: jitterStat(template.stats.health, random, 7),
-      appearance: jitterStat(template.stats.appearance, random, 7),
+      familyInfluence: jitterStat(template.stats.familyInfluence, random, 6, 0, 100),
+      health: jitterStat(normalizeThousandScaleStat(template.stats.health), random, 55, PLAYER_HEALTH_RANGE[0], PLAYER_HEALTH_RANGE[1]),
+      appearance: jitterStat(
+        normalizeThousandScaleStat(template.stats.appearance),
+        random,
+        55,
+        PLAYER_APPEARANCE_RANGE[0],
+        PLAYER_APPEARANCE_RANGE[1],
+      ),
       relationToPlayer: clamp(template.stats.relationToPlayer + Math.round((random() - 0.5) * 20), -100, 100),
       childrenCount,
-      ambition: jitterStat(template.stats.ambition, random),
-      stress: jitterStat(template.stats.stress, random, 10),
-      intrigue: jitterStat(template.stats.intrigue, random),
-      temperament: jitterStat(template.stats.temperament, random, 6),
-      affection: jitterStat(template.stats.affection, random, 10),
-      fortune: jitterStat(template.stats.fortune, random, 8),
+      ambition: jitterStat(template.stats.ambition, random, 10, PLAYER_AMBITION_RANGE[0], PLAYER_AMBITION_RANGE[1]),
+      stress: jitterStat(template.stats.stress, random, 12, PLAYER_STRESS_RANGE[0], PLAYER_STRESS_RANGE[1]),
+      intrigue: jitterStat(
+        normalizeThousandScaleStat(template.stats.intrigue),
+        random,
+        55,
+        PLAYER_INTRIGUE_RANGE[0],
+        PLAYER_INTRIGUE_RANGE[1],
+      ),
+      temperament: jitterStat(
+        normalizeThousandScaleStat(template.stats.temperament),
+        random,
+        50,
+        PLAYER_TEMPERAMENT_RANGE[0],
+        PLAYER_TEMPERAMENT_RANGE[1],
+      ),
+      affection: jitterStat(template.stats.affection, random, 12, 0, 100),
+      fortune: jitterStat(template.stats.fortune, random, 10, PLAYER_FORTUNE_RANGE[0], PLAYER_FORTUNE_RANGE[1]),
     },
     allies: [],
     rivals: [],
-  };
-
-  return {
-    ...consort,
-    stateLabel: getConcubineConditionLabel(consort),
-  };
+  });
 };
 
 const attachRelations = (roster: ConcubineProfile[]): ConcubineProfile[] => {
@@ -1002,7 +1084,7 @@ const attachRelations = (roster: ConcubineProfile[]): ConcubineProfile[] => {
 };
 
 const normalizeCustomConsort = (consort: ConcubineProfile, index: number): ConcubineProfile => {
-  const normalized: ConcubineProfile = {
+  return normalizeConcubineProfile({
     ...consort,
     id: consort.id || `custom-${consort.portraitId}-${index}`,
     source: 'custom',
@@ -1012,12 +1094,7 @@ const normalizeCustomConsort = (consort: ConcubineProfile, index: number): Concu
     rivals: consort.rivals ?? [],
     isCustomConsort: true,
     customSource: consort.customSource ?? 'player',
-  };
-
-  return {
-    ...normalized,
-    stateLabel: getConcubineConditionLabel(normalized),
-  };
+  });
 };
 
 export const getConcubinePortraitPath = (portraitId: string): string => {
@@ -1036,12 +1113,15 @@ export const getConcubineSortWeight = (consort: ConcubineProfile): number => {
   if (consort.status === 'limbo') {
     return consort.stats.intrigue;
   }
-  return (rankWeightMap[getCanonicalRankLabel(consort.rankLabel)] ?? 0) * 100 + consort.stats.favor;
+  const displayRank = getConcubineDisplayRankText(consort);
+  const rankRule = getPrestigeRuleByRankLabel(displayRank);
+  return (rankRule?.weight ?? 0) * 100 + Number(consort.stats.prestige ?? 0);
 };
 
 export const buildInitialConcubineRoster = (
   routeId: RouteId,
   customConsorts: ConcubineProfile[] = [],
+  occupiedFavorValues: readonly number[] = [],
 ): ConcubineProfile[] => {
   const random = createSeededRandom(`concubine-roster:${routeId}`);
   const fixed = ROUTE_FIXED_CONSORTS[routeId].map((seed, index) => createConcubineFromSeed(seed, 'fixed', routeId, index));
@@ -1060,7 +1140,8 @@ export const buildInitialConcubineRoster = (
     .filter((consort) => isConcubineRosterMember(consort))
     .map((consort, index) => normalizeCustomConsort(consort, index));
 
-  return attachRelations([...fixed, ...specials, ...generated, ...availableCustomConsorts].filter(isConcubineRosterMember));
+  const roster = [...fixed, ...specials, ...generated, ...availableCustomConsorts].filter(isConcubineRosterMember);
+  return attachRelations(enforceConcubineFavorTierCaps(roster, occupiedFavorValues));
 };
 
 export const sortConcubinesByStatus = (

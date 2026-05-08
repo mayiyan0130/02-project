@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { RARITY_COLOR_LEGENDARY } from '../../config/constants';
 import {
   getConcubineConditionLabel,
   getConcubineDisplayRankText,
+  getConcubineFavorTier,
   getConcubinePortraitPath,
   getConcubineRankPalette,
+  getConcubineRankShiftNotice,
   sortConcubinesByStatus,
 } from '../../game/data/concubineRoster';
+import { getRarityColor } from '../../game/lib/bedchamberRuntime';
 import type { ConcubineProfile, ConcubineStatus } from '../../game/types';
 
 const statusTabs: Array<{ id: ConcubineStatus; label: string }> = [
@@ -14,13 +18,9 @@ const statusTabs: Array<{ id: ConcubineStatus; label: string }> = [
   { id: 'deceased', label: '已逝' },
 ];
 
-const sourceLabelMap: Record<ConcubineProfile['source'], string> = {
-  fixed: '固定开局',
-  generated: '随机生成',
-  custom: '玩家自定义',
-};
-
 const formatSignedValue = (value: number): string => (value > 0 ? `+${value}` : String(value));
+const formatMetricValue = (value: number): string =>
+  Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '');
 
 const getVisitLabel = (status: ConcubineStatus): string => {
   if (status === 'deceased') {
@@ -48,90 +48,137 @@ interface MetricDescriptor {
   display: string;
   numericValue?: number;
   range?: readonly [number, number];
-  accentColor: string;
+  accentColor?: string;
 }
+
+const STRESS_SAFE_COLOR = '#5B9158';
+const STRESS_WARNING_COLOR = '#C9A447';
+
+const getMetricAccentColor = (metricKey: string, numericValue?: number, range?: readonly [number, number]): string => {
+  if (typeof numericValue !== 'number') {
+    return '#8b6c7f';
+  }
+
+  if (metricKey === 'stress') {
+    if (numericValue > 80) {
+      return RARITY_COLOR_LEGENDARY;
+    }
+    if (numericValue > 60) {
+      return STRESS_WARNING_COLOR;
+    }
+    return STRESS_SAFE_COLOR;
+  }
+
+  if (metricKey === 'prestige') {
+    return numericValue <= 0 ? '#7C7B78' : getRarityColor(numericValue, 5000);
+  }
+
+  if (metricKey === 'health' || metricKey === 'intrigue' || metricKey === 'appearance' || metricKey === 'temperament') {
+    return getRarityColor(numericValue, 1000);
+  }
+
+  if (metricKey === 'favor') {
+    return getConcubineFavorTier({
+      stats: {
+        favor: numericValue,
+      },
+    } as ConcubineProfile).color;
+  }
+
+  if (metricKey === 'fortune' || metricKey === 'ambition' || metricKey === 'relationToPlayer') {
+    return numericValue <= 0 ? '#7C7B78' : getRarityColor(numericValue, 100);
+  }
+
+  if (metricKey === 'affection') {
+    return getRarityColor(numericValue, 100);
+  }
+
+  if (!range) {
+    return '#8b6c7f';
+  }
+
+  return getRarityColor(numericValue - range[0], range[1] - range[0]);
+};
 
 const buildMetricRows = (consort: ConcubineProfile): MetricDescriptor[][] => [
   [
     {
       key: 'prestige',
       label: '声望',
-      display: String(consort.stats.prestige),
+      display: formatMetricValue(consort.stats.prestige),
       numericValue: consort.stats.prestige,
       range: [-2000, 5000],
-      accentColor: '#b6634c',
     },
   ],
   [
     {
       key: 'favor',
       label: '宠爱',
-      display: String(consort.stats.favor),
+      display: formatMetricValue(consort.stats.favor),
       numericValue: consort.stats.favor,
       range: [-100, 100],
-      accentColor: '#ca648c',
+    },
+    {
+      key: 'fortune',
+      label: '福德',
+      display: formatMetricValue(consort.stats.fortune),
+      numericValue: consort.stats.fortune,
+      range: [-100, 100],
     },
     {
       key: 'ambition',
       label: '野心',
-      display: String(consort.stats.ambition),
+      display: formatMetricValue(consort.stats.ambition),
       numericValue: consort.stats.ambition,
       range: [-100, 100],
-      accentColor: '#8a63c4',
-    },
-    {
-      key: 'stress',
-      label: '压力',
-      display: String(consort.stats.stress),
-      numericValue: consort.stats.stress,
-      range: [0, 100],
-      accentColor: '#bc7a42',
     },
   ],
   [
     {
-      key: 'familyInfluence',
+      key: 'stress',
+      label: '压力',
+      display: formatMetricValue(consort.stats.stress),
+      numericValue: consort.stats.stress,
+      range: [-100, 100],
+    },
+  ],
+  [
+    {
+      key: 'familyBackground',
       label: '家世',
-      display: String(consort.stats.familyInfluence),
-      numericValue: consort.stats.familyInfluence,
-      range: [0, 100],
-      accentColor: '#92704f',
+      display: consort.familyBackground,
     },
   ],
   [
     {
       key: 'health',
       label: '健康',
-      display: String(consort.stats.health),
+      display: formatMetricValue(consort.stats.health),
       numericValue: consort.stats.health,
       range: [0, 1000],
-      accentColor: '#6d8f62',
     },
     {
       key: 'intrigue',
       label: '心计',
-      display: String(consort.stats.intrigue),
+      display: formatMetricValue(consort.stats.intrigue),
       numericValue: consort.stats.intrigue,
       range: [0, 1000],
-      accentColor: '#6e59a8',
     },
   ],
   [
     {
       key: 'appearance',
       label: '容貌',
-      display: String(consort.stats.appearance),
+      display: formatMetricValue(consort.stats.appearance),
       numericValue: consort.stats.appearance,
       range: [0, 1000],
-      accentColor: '#cf7a73',
     },
     {
       key: 'temperament',
       label: '气质',
-      display: String(consort.stats.temperament),
+      display: formatMetricValue(consort.stats.temperament),
       numericValue: consort.stats.temperament,
       range: [0, 1000],
-      accentColor: '#7482be',
     },
   ],
   [
@@ -141,31 +188,13 @@ const buildMetricRows = (consort: ConcubineProfile): MetricDescriptor[][] => [
       display: formatSignedValue(consort.stats.relationToPlayer),
       numericValue: consort.stats.relationToPlayer,
       range: [-100, 100],
-      accentColor: '#4d92bf',
     },
     {
       key: 'affection',
       label: '倾情',
-      display: String(consort.stats.affection),
+      display: formatMetricValue(consort.stats.affection),
       numericValue: consort.stats.affection,
       range: [0, 100],
-      accentColor: '#c45d93',
-    },
-  ],
-  [
-    {
-      key: 'personality',
-      label: '性格',
-      display: consort.personality,
-      accentColor: '#8b6c7f',
-    },
-    {
-      key: 'fortune',
-      label: '福德',
-      display: String(consort.stats.fortune),
-      numericValue: consort.stats.fortune,
-      range: [-100, 100],
-      accentColor: '#aa8547',
     },
   ],
   [
@@ -173,7 +202,6 @@ const buildMetricRows = (consort: ConcubineProfile): MetricDescriptor[][] => [
       key: 'childrenCount',
       label: '子嗣',
       display: String(consort.stats.childrenCount),
-      accentColor: '#8b7269',
     },
   ],
 ];
@@ -216,11 +244,8 @@ export function ConcubineListView({ concubines, onClose }: ConcubineListViewProp
   const visitLabel = getVisitLabel(activeConsort.status);
   const metricRows = buildMetricRows(activeConsort);
   const currentConditionLabel = getConcubineConditionLabel(activeConsort);
-  const noteText =
-    actionNote ||
-    `家世：${activeConsort.familyBackground}。${activeConsort.summary} 来源：${sourceLabelMap[activeConsort.source]}${
-      activeConsort.isCustomConsort ? '，后续可继续扩展自定义剧情。' : '。'
-    }`;
+  const rankShiftNotice = getConcubineRankShiftNotice(activeConsort);
+  const noteText = actionNote || `性格：${activeConsort.personality}。生平：${activeConsort.summary}`;
 
   return (
     <section className="concubine-list-view" aria-label="嫔妃总览面板">
@@ -272,13 +297,16 @@ export function ConcubineListView({ concubines, onClose }: ConcubineListViewProp
 
       <div className="concubine-list-view__chips" aria-label="当前嫔妃信息栏">
         <div className="concubine-list-view__chip concubine-list-view__chip--primary">
-          <span className="concubine-list-view__chip-rank" style={{ color: currentRankPalette.rankColor }}>
-            {currentRankText}
-          </span>
-          {' '}
-          <span className="concubine-list-view__chip-name" style={{ color: currentRankPalette.nameColor }}>
-            {activeConsort.name}
-          </span>
+          <div className="concubine-list-view__chip-main">
+            <span className="concubine-list-view__chip-rank" style={{ color: currentRankPalette.rankColor }}>
+              {currentRankText}
+            </span>
+            {' '}
+            <span className="concubine-list-view__chip-name" style={{ color: currentRankPalette.nameColor }}>
+              {activeConsort.name}
+            </span>
+          </div>
+          {rankShiftNotice ? <small className="concubine-list-view__chip-hint">{rankShiftNotice}</small> : null}
         </div>
         <div className="concubine-list-view__chip concubine-list-view__chip--secondary">{activeConsort.residence}</div>
         <div className="concubine-list-view__chip concubine-list-view__chip--secondary">{`状态 ${currentConditionLabel}`}</div>
@@ -315,10 +343,11 @@ export function ConcubineListView({ concubines, onClose }: ConcubineListViewProp
             className={`concubine-list-view__metric-row-group concubine-list-view__metric-row-group--${row.length}`}
           >
             {row.map((metric) => {
+              const accentColor = metric.accentColor ?? getMetricAccentColor(metric.key, metric.numericValue, metric.range);
               const meterStyle =
                 metric.range && typeof metric.numericValue === 'number'
                   ? ({
-                      '--metric-fill': metric.accentColor,
+                      '--metric-fill': accentColor,
                       '--metric-level': `${getMetricPercent(metric.numericValue, metric.range)}%`,
                     } as CSSProperties)
                   : undefined;

@@ -7,7 +7,7 @@ interface ActivitySceneProps {
 }
 
 const npcList = [
-  { name: '姚玲儿', rank: '贵妃', affinity: 32, power: 88 },
+  { name: '姚铃儿', rank: '贵妃', affinity: 32, power: 88 },
   { name: '柳仪芳', rank: '美人', affinity: 68, power: 42 },
   { name: '江晚晚', rank: '淑妃', affinity: 41, power: 73 },
 ];

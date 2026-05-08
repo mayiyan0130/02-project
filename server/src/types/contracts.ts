@@ -125,6 +125,20 @@ export interface OpeningDialogueRequest {
     stamina: number;
     stats: Record<string, number>;
   };
+  npcContext: {
+    npcId: string;
+    identity: string;
+    publicFace: string;
+    hiddenCore: string;
+    speechStyle: string[];
+    sceneDuty: string[];
+  };
+  routeContext: {
+    playerRoleSummary: string;
+    routePressure: string;
+    mapFeatureSummary: string;
+    choiceFocus: string;
+  };
   timeContext: {
     year: number;
     month: number;
@@ -169,6 +183,79 @@ export interface OpeningDialogueResponse {
 
 export type RelationshipToneTag = 'friendly' | 'flirt' | 'cold' | 'reject' | 'neutral';
 
+export interface ConsortDialogueOption {
+  id: string;
+  label: string;
+  effectHint: string;
+  fallbackToneTag: RelationshipToneTag;
+  nextTopic?: string;
+}
+
+export interface ConsortDialogueRequest {
+  routeId: string;
+  playerName: string;
+  playerRank: string;
+  playerResidence: string;
+  playerOpeningTendency?: string;
+  canPunish: boolean;
+  topic: 'visit' | 'action' | 'follow-up';
+  actionId: string;
+  actionLabel: string;
+  actionResult?: string;
+  selectedOptionId?: string;
+  selectedOptionLabel?: string;
+  giftItemName?: string;
+  smearTargetName?: string;
+  history: Array<{
+    speaker: string;
+    text: string;
+  }>;
+  recentContext: string[];
+  playerContext: {
+    favor: number;
+    stress: number;
+    prestige: number;
+    trueHeart: number;
+    silver: number;
+    stamina: number;
+    stats: Record<string, number>;
+  };
+  consortContext: {
+    id: string;
+    name: string;
+    rank: string;
+    residence: string;
+    stateLabel: string;
+    personality: string;
+    summary: string;
+    currentGoodwill: number;
+    currentAffection: number;
+    emperorFavor: number;
+    stress: number;
+    allies: string[];
+    rivals: string[];
+  };
+  timeContext: {
+    year: number;
+    month: number;
+    xun: number;
+    slotIndex: number;
+    slot: string;
+    slotProgress?: number;
+  };
+}
+
+export interface ConsortDialogueResponse {
+  mode: 'line' | 'branch';
+  phase: 'continue' | 'finish';
+  speakerIdentity: string;
+  speakerName: string;
+  text: string;
+  nextActionLabel: string;
+  sceneHint?: string;
+  options: ConsortDialogueOption[];
+}
+
 export interface RelationshipJudgeRequest {
   routeId: string;
   npcId: string;
@@ -186,6 +273,48 @@ export interface RelationshipJudgeResponse {
   affectionDelta: number;
   reason: string;
   confidence: number;
+}
+
+export interface TempleAmbientRequest {
+  routeId: string;
+  playerName: string;
+  playerRank: string;
+  location: string;
+  action: 'worship' | 'pray' | 'stroll-idle';
+  stateHint?: string;
+  timeContext: {
+    year: number;
+    month: number;
+    xun: number;
+    slotIndex: number;
+    slot: string;
+    slotProgress?: number;
+  };
+}
+
+export interface TempleAmbientResponse {
+  text: string;
+}
+
+export interface TaiyiAmbientRequest {
+  routeId: string;
+  playerName: string;
+  playerRank: string;
+  location: string;
+  action: 'stroll-idle' | 'consult';
+  stateHint?: string;
+  timeContext: {
+    year: number;
+    month: number;
+    xun: number;
+    slotIndex: number;
+    slot: string;
+    slotProgress?: number;
+  };
+}
+
+export interface TaiyiAmbientResponse {
+  text: string;
 }
 
 export interface CalcEventPayload {

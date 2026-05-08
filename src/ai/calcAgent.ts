@@ -1,9 +1,8 @@
 import type { CalcAgentRequest, CalcAgentResponse } from '../types/game';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+import { buildApiUrl } from './apiBaseUrl';
 
 export const requestCalculation = async (payload: CalcAgentRequest): Promise<CalcAgentResponse> => {
-  const response = await fetch(`${API_BASE_URL}/api/v1/ai/calc`, {
+  const response = await fetch(buildApiUrl('/api/v1/ai/calc'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

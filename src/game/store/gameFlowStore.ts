@@ -1,19 +1,32 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { STAMINA_INITIAL_PER_XUN, STAMINA_MAX } from '../../config/constants';
+import { PLAYER_FAVOR_RANGE, STAMINA_INITIAL_PER_XUN, STAMINA_MAX, getFavorTierByValue } from '../../config/constants';
 import type { ChamberPanelId } from '../../config/bedchamber';
 import { attributeFields } from '../data/config';
+import { cloneInitialInventory, getInventoryRecyclePrice } from '../data/inventoryPresets';
 import { buildInitialBondProfile } from '../data/bondPresets';
-import { buildInitialConcubineRoster } from '../data/concubineRoster';
+import {
+  applyConcubinePressureHealthPenalty,
+  buildInitialConcubineRoster,
+  enforceConcubineFavorTierCaps,
+  normalizeConcubineProfile,
+} from '../data/concubineRoster';
 import type {
+  AffairSourceLabel,
   BondProfileState,
   ConcubineProfile,
+  ConsortInteractionProgress,
+  ConsortPalaceActionId,
   CurrentView,
   DialogueTurn,
   GameNumericsState,
   HiddenStatsState,
+  InventoryItem,
   NumericSaveEnvelope,
   PalaceTimeState,
+  KitchenProgressState,
+  MedicalProgressState,
+  TempleProgressState,
   RelationshipJudgeOutcome,
   RouteSelectionProfile,
   SceneId,
@@ -25,6 +38,7 @@ interface GameFlowStore {
   scene: SceneId;
   activeChamberPanel: ChamberPanelId;
   activeMapLocation?: MapAreaId;
+  activeAffairsSource: AffairSourceLabel;
   routeId: GameNumericsState['routeId'];
   state: GameNumericsState;
   hiddenStats: HiddenStatsState;
@@ -38,10 +52,17 @@ interface GameFlowStore {
   concubineRouteId: GameNumericsState['routeId'];
   concubines: ConcubineProfile[];
   customConsorts: ConcubineProfile[];
+  inventory: InventoryItem[];
+  merchantLedger: Record<string, number>;
+  consortInteractionMap: Record<string, ConsortInteractionProgress>;
+  kitchenProgress: KitchenProgressState;
+  medicalProgress: MedicalProgressState;
+  templeProgress: TempleProgressState;
   setCurrentView: (view: CurrentView) => void;
   setScene: (scene: SceneId) => void;
   openChamberPanel: (panel: ChamberPanelId) => void;
   closeChamberPanel: () => void;
+  setActiveAffairsSource: (source: AffairSourceLabel) => void;
   enterMainChamber: (location?: MapAreaId | null) => void;
   enterMapMain: () => void;
   setRoute: (routeId: GameNumericsState['routeId']) => void;
@@ -57,6 +78,23 @@ interface GameFlowStore {
   ensureBondProfile: (routeId?: GameNumericsState['routeId']) => void;
   ensureConcubines: (routeId?: GameNumericsState['routeId']) => void;
   addCustomConsort: (consort: ConcubineProfile) => void;
+  patchConcubineById: (consortId: string, updater: (consort: ConcubineProfile) => ConcubineProfile) => void;
+  patchKitchenProgress: (patch: Partial<KitchenProgressState>) => void;
+  patchMedicalProgress: (patch: Partial<MedicalProgressState>) => void;
+  patchTempleProgress: (patch: Partial<TempleProgressState>) => void;
+  consumeInventoryItem: (itemId: string) => boolean;
+  buyInventoryItem: (item: InventoryItem, stockLimit?: number | null) => { success: boolean; message: string };
+  sellInventoryItem: (itemId: string) => { success: boolean; message: string };
+  applyConsortRelationshipJudgement: (
+    consortId: string,
+    actionId: ConsortPalaceActionId,
+    result: RelationshipJudgeOutcome,
+  ) => {
+    appliedFavorDelta: number;
+    appliedAffectionDelta: number;
+    favorCapHit: boolean;
+    affectionCapHit: boolean;
+  };
   applyBondJudgement: (result: RelationshipJudgeOutcome) => void;
   advanceTime: (steps?: number) => void;
   applyStoryEffects: (effects: Partial<GameNumericsState> & { stats?: Record<string, number>; flags?: Record<string, boolean> }) => void;
@@ -74,20 +112,53 @@ const sumExcessPoints = (stats: Record<string, number>, mins: Record<string, num
   }, 0);
 
 const clampInt = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, Math.floor(value)));
+const clampToRange = (value: number, range: readonly [number, number]): number => Math.max(range[0], Math.min(range[1], value));
 const timeSlots: PalaceTimeState['slot'][] = ['清晨', '上午', '中午', '下午', '傍晚', '夜晚', '深夜'];
 const getCurrentXunKey = (time: PalaceTimeState): string => `${time.year}-${time.month}-${time.xun}`;
 const sanitizeRelationshipDelta = (value: number): number => Math.max(-1, Math.min(1, Math.trunc(value || 0)));
 const resolveXunStartingStamina = (): number => clampInt(STAMINA_INITIAL_PER_XUN, 0, STAMINA_MAX);
+const normalizePlayerFavor = (favor: number): number => clampToRange(Number(favor ?? 0), PLAYER_FAVOR_RANGE);
 
 const resolveFavorPresentation = (favor: number): Pick<HiddenStatsState, 'favorLabel' | 'favorColor'> => {
-  if (favor >= 81) return { favorLabel: '独宠', favorColor: '#FF0800' };
-  if (favor >= 61) return { favorLabel: '盛宠', favorColor: '#E840B2' };
-  if (favor >= 41) return { favorLabel: '得宠', favorColor: '#7371D8' };
-  if (favor >= 21) return { favorLabel: '小宠', favorColor: '#70D1D7' };
-  if (favor >= 1) return { favorLabel: '无宠', favorColor: '#7C7B78' };
-  if (favor >= -49) return { favorLabel: '厌恶', favorColor: '#7C7B78' };
-  return { favorLabel: '憎恶', favorColor: '#7C7B78' };
+  const tier = getFavorTierByValue(favor);
+  return {
+    favorLabel: tier.label,
+    favorColor: tier.color,
+  };
 };
+
+const enforceRosterFavorCaps = (concubines: ConcubineProfile[], playerFavor: number): ConcubineProfile[] =>
+  enforceConcubineFavorTierCaps(concubines, [playerFavor]);
+
+const applyConcubineUpdater = (
+  list: ConcubineProfile[],
+  consortId: string,
+  updater: (consort: ConcubineProfile) => ConcubineProfile,
+): ConcubineProfile[] => {
+  let touched = false;
+  const nextList = list.map((consort) => {
+    if (consort.id !== consortId) {
+      return consort;
+    }
+    touched = true;
+    return normalizeConcubineProfile(updater(consort));
+  });
+
+  return touched ? nextList : list;
+};
+
+const createEmptyConsortInteractionProgress = (consortId: string, xunKey: string): ConsortInteractionProgress => ({
+  consortId,
+  xunKey,
+  favorDeltaThisXun: 0,
+  affectionDeltaThisXun: 0,
+});
+
+const buildRouteConcubines = (
+  routeId: GameNumericsState['routeId'],
+  customConsorts: ConcubineProfile[],
+  playerFavor: number,
+): ConcubineProfile[] => buildInitialConcubineRoster(routeId, customConsorts, [playerFavor]);
 
 const resolvePointsTotalByFamily = (family: string): number => {
   const normalized = String(family ?? '').replace(/\s+/g, '');
@@ -231,8 +302,7 @@ const initialHiddenStats: HiddenStatsState = {
   stress: 30,
   favor: 50,
   trueHeart: 35,
-  favorLabel: '得宠',
-  favorColor: '#7371D8',
+  ...resolveFavorPresentation(initialState.favor),
 };
 
 const initialTime: PalaceTimeState = {
@@ -245,7 +315,32 @@ const initialTime: PalaceTimeState = {
 };
 
 const initialBondProfile = buildInitialBondProfile('lanyinxuguo', getCurrentXunKey(initialTime));
-const initialConcubines = buildInitialConcubineRoster('lanyinxuguo');
+const initialConcubines = buildRouteConcubines('lanyinxuguo', [], initialState.favor);
+const initialInventory = cloneInitialInventory();
+const initialMerchantLedger: Record<string, number> = {};
+const createInitialKitchenProgress = (): KitchenProgressState => ({
+  strollCount: 0,
+  buZiyouUnlocked: false,
+  buZiyouMet: false,
+  buZiyouFavor: 0,
+  buZiyouAffinity: 0,
+});
+
+const createInitialTempleProgress = (): TempleProgressState => ({
+  worshipCount: 0,
+  prayerCount: 0,
+  strollCount: 0,
+  dangYiFavor: 0,
+  dangYiAffinity: 0,
+});
+
+const createInitialMedicalProgress = (): MedicalProgressState => ({
+  strollCount: 0,
+  consultationCount: 0,
+  jianNingMet: false,
+  jianNingFavor: 0,
+  jianNingAffinity: 0,
+});
 
 export const useGameFlowStore = create<GameFlowStore>()(
   persist(
@@ -254,6 +349,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
       scene: 'menu',
       activeChamberPanel: 'main',
       activeMapLocation: undefined,
+      activeAffairsSource: '宫斗事务',
       routeId: 'lanyinxuguo',
       state: initialState,
       hiddenStats: initialHiddenStats,
@@ -267,10 +363,17 @@ export const useGameFlowStore = create<GameFlowStore>()(
       concubineRouteId: 'lanyinxuguo',
       concubines: initialConcubines,
       customConsorts: [],
+      inventory: initialInventory,
+      merchantLedger: initialMerchantLedger,
+      consortInteractionMap: {},
+      kitchenProgress: createInitialKitchenProgress(),
+      medicalProgress: createInitialMedicalProgress(),
+      templeProgress: createInitialTempleProgress(),
       setCurrentView: (currentView) => set({ currentView }),
       setScene: (scene) => set({ scene }),
       openChamberPanel: (activeChamberPanel) => set({ activeChamberPanel }),
       closeChamberPanel: () => set({ activeChamberPanel: 'main' }),
+      setActiveAffairsSource: (activeAffairsSource) => set({ activeAffairsSource }),
       enterMainChamber: (location) =>
         set({
           currentView: 'bedchamber',
@@ -290,54 +393,100 @@ export const useGameFlowStore = create<GameFlowStore>()(
           state: { ...current.state, routeId },
           bondProfile: buildInitialBondProfile(routeId, getCurrentXunKey(current.time)),
           concubineRouteId: routeId,
-          concubines: buildInitialConcubineRoster(routeId, current.customConsorts),
+          concubines: buildRouteConcubines(routeId, current.customConsorts, current.state.favor),
+          merchantLedger: {},
+          kitchenProgress: createInitialKitchenProgress(),
+          medicalProgress: createInitialMedicalProgress(),
+          templeProgress: createInitialTempleProgress(),
         })),
       applyRouteSelection: (profile) =>
-        set((current) => ({
-          currentView: 'attribute-assignment',
-          routeId: profile.id,
+        set((current) => {
+          const nextFavor = normalizePlayerFavor(profile.hiddenStats.favor);
+          return {
+            currentView: 'attribute-assignment',
+            routeId: profile.id,
           selectedRoute: profile,
           state: validatePointsState({
-            ...current.state,
-            ...profile.baseState,
-            routeId: profile.id,
-            name: profile.baseState.name ?? profile.defaultName,
-            family: profile.baseState.family ?? profile.familyDisplay,
-            residenceName: profile.baseState.residenceName ?? profile.residenceDisplay,
-            age: profile.baseState.age ?? current.state.age,
-            stamina: profile.baseState.stamina ?? STAMINA_INITIAL_PER_XUN,
-            silver: profile.hiddenStats.silver,
-            prestige: profile.hiddenStats.prestige,
-            stress: profile.hiddenStats.stress,
-            favor: profile.hiddenStats.favor,
-            trueHeart: profile.hiddenStats.trueHeart,
-            pointsTotal: profile.baseState.pointsTotal ?? current.state.pointsTotal,
-            pointsLeft: profile.baseState.pointsTotal ?? profile.baseState.pointsLeft ?? current.state.pointsLeft,
-            flags: {
-              ...current.state.flags,
-              routeLockedStats: Boolean(profile.statsLocked),
+              ...current.state,
+              ...profile.baseState,
+              routeId: profile.id,
+              name: profile.baseState.name ?? profile.defaultName,
+              family: profile.baseState.family ?? profile.familyDisplay,
+              residenceName: profile.baseState.residenceName ?? profile.residenceDisplay,
+              age: profile.baseState.age ?? current.state.age,
+              stamina: profile.baseState.stamina ?? STAMINA_INITIAL_PER_XUN,
+              silver: profile.hiddenStats.silver,
+              prestige: profile.hiddenStats.prestige,
+              stress: profile.hiddenStats.stress,
+              favor: nextFavor,
+              trueHeart: profile.hiddenStats.trueHeart,
+              pointsTotal: profile.baseState.pointsTotal ?? current.state.pointsTotal,
+              pointsLeft: profile.baseState.pointsTotal ?? profile.baseState.pointsLeft ?? current.state.pointsLeft,
+              flags: {
+                ...current.state.flags,
+                routeLockedStats: Boolean(profile.statsLocked),
+              },
+            }),
+            hiddenStats: {
+              ...profile.hiddenStats,
+              favor: nextFavor,
+              ...resolveFavorPresentation(nextFavor),
             },
-          }),
-          hiddenStats: profile.hiddenStats,
-          bondProfile: buildInitialBondProfile(profile.id, getCurrentXunKey(current.time)),
-          concubineRouteId: profile.id,
-          concubines: buildInitialConcubineRoster(profile.id, current.customConsorts),
-        })),
+            bondProfile: buildInitialBondProfile(profile.id, getCurrentXunKey(current.time)),
+            concubineRouteId: profile.id,
+            concubines: buildRouteConcubines(profile.id, current.customConsorts, nextFavor),
+            inventory: cloneInitialInventory(),
+            merchantLedger: {},
+            consortInteractionMap: {},
+            kitchenProgress: createInitialKitchenProgress(),
+            medicalProgress: createInitialMedicalProgress(),
+            templeProgress: createInitialTempleProgress(),
+          };
+        }),
       patchState: (patch) =>
         set((current) => {
           const merged = { ...current.state, ...patch };
           const shouldValidate = 'family' in patch || 'stats' in patch || 'pointsTotal' in patch || 'pointsLeft' in patch;
-          return { state: shouldValidate ? validatePointsState(merged) : merged };
+          const nextState = {
+            ...(shouldValidate ? validatePointsState(merged) : merged),
+            favor: normalizePlayerFavor(merged.favor ?? current.state.favor),
+          };
+          if (typeof patch.favor !== 'number') {
+            return { state: nextState };
+          }
+
+          return {
+            state: nextState,
+            hiddenStats: {
+              ...current.hiddenStats,
+              favor: nextState.favor,
+              ...resolveFavorPresentation(nextState.favor),
+            },
+            concubines: enforceRosterFavorCaps(current.concubines, nextState.favor),
+          };
         }),
       patchHiddenStats: (patch) =>
         set((current) => {
           const merged = { ...current.hiddenStats, ...patch };
-          const nextFavor = typeof merged.favor === 'number' ? merged.favor : current.hiddenStats.favor;
+          const shouldSyncFavor = typeof patch.favor === 'number';
+          const nextFavor = normalizePlayerFavor(
+            typeof merged.favor === 'number' ? merged.favor : current.hiddenStats.favor,
+          );
           return {
+            ...(shouldSyncFavor
+              ? {
+                  state: {
+                    ...current.state,
+                    favor: nextFavor,
+                  },
+                }
+              : {}),
             hiddenStats: {
               ...merged,
+              favor: nextFavor,
               ...resolveFavorPresentation(nextFavor),
             },
+            concubines: enforceRosterFavorCaps(current.concubines, nextFavor),
           };
         }),
       setBriefing: (briefing) => set({ briefing }),
@@ -400,12 +549,14 @@ export const useGameFlowStore = create<GameFlowStore>()(
         set((current) => {
           const targetRouteId = routeId ?? current.state.routeId;
           if (current.concubineRouteId === targetRouteId && current.concubines.length > 0) {
-            return current;
+            return {
+              concubines: enforceRosterFavorCaps(current.concubines, current.state.favor),
+            };
           }
 
           return {
             concubineRouteId: targetRouteId,
-            concubines: buildInitialConcubineRoster(targetRouteId, current.customConsorts),
+            concubines: buildRouteConcubines(targetRouteId, current.customConsorts, current.state.favor),
           };
         }),
       addCustomConsort: (consort) =>
@@ -413,10 +564,268 @@ export const useGameFlowStore = create<GameFlowStore>()(
           const customConsorts = [...current.customConsorts, consort];
           return {
             customConsorts,
-            concubines: buildInitialConcubineRoster(current.state.routeId, customConsorts),
+            concubines: buildRouteConcubines(current.state.routeId, customConsorts, current.state.favor),
             concubineRouteId: current.state.routeId,
           };
         }),
+      patchKitchenProgress: (patch) =>
+        set((current) => ({
+          kitchenProgress: {
+            ...current.kitchenProgress,
+            ...patch,
+          },
+        })),
+      patchMedicalProgress: (patch) =>
+        set((current) => ({
+          medicalProgress: {
+            ...current.medicalProgress,
+            ...patch,
+          },
+        })),
+      patchTempleProgress: (patch) =>
+        set((current) => ({
+          templeProgress: {
+            ...current.templeProgress,
+            ...patch,
+          },
+        })),
+      patchConcubineById: (consortId, updater) =>
+        set((current) => {
+          const nextConcubines = enforceRosterFavorCaps(
+            applyConcubineUpdater(current.concubines, consortId, updater),
+            current.state.favor,
+          );
+          const nextCustomConsorts = applyConcubineUpdater(current.customConsorts, consortId, updater);
+
+          return {
+            concubines: nextConcubines,
+            customConsorts: nextCustomConsorts,
+          };
+        }),
+      consumeInventoryItem: (itemId) => {
+        let consumed = false;
+        set((current) => {
+          const nextInventory = current.inventory
+            .map((item) => {
+              if (item.itemId !== itemId || item.quantity <= 0) {
+                return item;
+              }
+              consumed = true;
+              return {
+                ...item,
+                quantity: item.quantity - 1,
+              };
+            })
+            .filter((item) => item.quantity > 0);
+
+          return consumed ? { inventory: nextInventory } : current;
+        });
+        return consumed;
+      },
+      buyInventoryItem: (item, stockLimit) => {
+        let result = {
+          success: false,
+          message: '杜娘今日不卖这件东西。',
+        };
+
+        set((current) => {
+          if (item.canSell === false) {
+            result = {
+              success: false,
+              message: `${item.name}眼下不在杜娘的货单里。`,
+            };
+            return current;
+          }
+
+          const xunKey = getCurrentXunKey(current.time);
+          const ledgerKey = `${xunKey}:${item.itemId}`;
+          const boughtCount = current.merchantLedger[ledgerKey] ?? 0;
+          if (typeof stockLimit === 'number' && stockLimit >= 0 && boughtCount >= stockLimit) {
+            result = {
+              success: false,
+              message: `${item.name}这一旬已经卖空了。`,
+            };
+            return current;
+          }
+
+          const itemPrice = Math.max(0, Math.floor(item.price));
+          if (current.state.silver < itemPrice) {
+            result = {
+              success: false,
+              message: `银两不足，还差${itemPrice - current.state.silver}两。`,
+            };
+            return current;
+          }
+
+          const existingIndex = current.inventory.findIndex((entry) => entry.itemId === item.itemId);
+          const nextInventory =
+            existingIndex === -1
+              ? [
+                  ...current.inventory,
+                  {
+                    ...item,
+                    quantity: 1,
+                  },
+                ]
+              : current.inventory.map((entry, index) =>
+                  index === existingIndex
+                    ? {
+                        ...entry,
+                        quantity: entry.quantity + 1,
+                      }
+                    : entry,
+                );
+          const nextSilver = current.state.silver - itemPrice;
+
+          result = {
+            success: true,
+            message: `你花了${itemPrice}两买下${item.name}。`,
+          };
+
+          return {
+            inventory: nextInventory,
+            merchantLedger: {
+              ...current.merchantLedger,
+              [ledgerKey]: boughtCount + 1,
+            },
+            state: {
+              ...current.state,
+              silver: nextSilver,
+            },
+            hiddenStats: {
+              ...current.hiddenStats,
+              silver: nextSilver,
+            },
+          };
+        });
+
+        return result;
+      },
+      sellInventoryItem: (itemId) => {
+        let result = {
+          success: false,
+          message: '这件东西眼下卖不出去。',
+        };
+
+        set((current) => {
+          const inventoryItem = current.inventory.find((item) => item.itemId === itemId);
+          if (!inventoryItem || inventoryItem.quantity <= 0) {
+            result = {
+              success: false,
+              message: '背包里已经没有这件东西了。',
+            };
+            return current;
+          }
+
+          if (inventoryItem.canRecycle === false) {
+            result = {
+              success: false,
+              message: `${inventoryItem.name}不在杜娘的回收范围里。`,
+            };
+            return current;
+          }
+
+          const recyclePrice = getInventoryRecyclePrice(inventoryItem);
+          const nextInventory = current.inventory
+            .map((item) =>
+              item.itemId === itemId
+                ? {
+                    ...item,
+                    quantity: item.quantity - 1,
+                  }
+                : item,
+            )
+            .filter((item) => item.quantity > 0);
+          const nextSilver = current.state.silver + recyclePrice;
+
+          result = {
+            success: true,
+            message: `杜娘收下了${inventoryItem.name}，给了你${recyclePrice}两。`,
+          };
+
+          return {
+            inventory: nextInventory,
+            state: {
+              ...current.state,
+              silver: nextSilver,
+            },
+            hiddenStats: {
+              ...current.hiddenStats,
+              silver: nextSilver,
+            },
+          };
+        });
+
+        return result;
+      },
+      applyConsortRelationshipJudgement: (consortId, actionId, result) => {
+        let summary = {
+          appliedFavorDelta: 0,
+          appliedAffectionDelta: 0,
+          favorCapHit: false,
+          affectionCapHit: false,
+        };
+
+        set((current) => {
+          const xunKey = getCurrentXunKey(current.time);
+          const activeProgress =
+            current.consortInteractionMap[consortId]?.xunKey === xunKey
+              ? current.consortInteractionMap[consortId]
+              : createEmptyConsortInteractionProgress(consortId, xunKey);
+          const requestedFavorDelta = sanitizeRelationshipDelta(result.favorDelta);
+          const requestedAffectionDelta = sanitizeRelationshipDelta(result.affectionDelta);
+          const nextFavorDeltaThisXun = Math.max(-5, Math.min(5, activeProgress.favorDeltaThisXun + requestedFavorDelta));
+          const nextAffectionDeltaThisXun = Math.max(
+            -5,
+            Math.min(5, activeProgress.affectionDeltaThisXun + requestedAffectionDelta),
+          );
+          const appliedFavorDelta = nextFavorDeltaThisXun - activeProgress.favorDeltaThisXun;
+          const appliedAffectionDelta = nextAffectionDeltaThisXun - activeProgress.affectionDeltaThisXun;
+          summary = {
+            appliedFavorDelta,
+            appliedAffectionDelta,
+            favorCapHit: requestedFavorDelta !== 0 && appliedFavorDelta === 0,
+            affectionCapHit: requestedAffectionDelta !== 0 && appliedAffectionDelta === 0,
+          };
+
+          const applyRelationshipDelta = (consort: ConcubineProfile): ConcubineProfile => ({
+            ...consort,
+            stats: {
+              ...consort.stats,
+              relationToPlayer: clampToRange(
+                Number(consort.stats.relationToPlayer ?? 0) + appliedFavorDelta,
+                [-100, 100],
+              ),
+              affection: clampToRange(Number(consort.stats.affection ?? 0) + appliedAffectionDelta, [0, 100]),
+            },
+          });
+
+          return {
+            concubines: enforceRosterFavorCaps(
+              applyConcubineUpdater(current.concubines, consortId, applyRelationshipDelta),
+              current.state.favor,
+            ),
+            customConsorts: applyConcubineUpdater(current.customConsorts, consortId, applyRelationshipDelta),
+            consortInteractionMap: {
+              ...current.consortInteractionMap,
+              [consortId]: {
+                ...activeProgress,
+                xunKey,
+                favorDeltaThisXun: nextFavorDeltaThisXun,
+                affectionDeltaThisXun: nextAffectionDeltaThisXun,
+                lastActionId: actionId,
+                lastOptionText: result.optionText,
+                lastToneTag: result.toneTag,
+                lastReason: result.reason,
+                lastConfidence: result.confidence,
+                lastSource: result.source,
+              },
+            },
+          };
+        });
+
+        return summary;
+      },
       applyBondJudgement: (result) =>
         set((current) => {
           const xunKey = getCurrentXunKey(current.time);
@@ -456,7 +865,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
             ...current.state,
             silver: Math.max(0, current.state.silver + (effects.silver ?? 0)),
             stamina: Math.max(0, Math.min(STAMINA_MAX, current.state.stamina + (effects.stamina ?? 0))),
-            favor: current.state.favor + (effects.favor ?? 0),
+            favor: normalizePlayerFavor(current.state.favor + (effects.favor ?? 0)),
             prestige: Math.max(0, current.state.prestige + (effects.prestige ?? 0)),
             stress: Math.max(0, current.state.stress + (effects.stress ?? 0)),
             trueHeart: current.state.trueHeart + (effects.trueHeart ?? 0),
@@ -475,6 +884,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
 
           return {
             state: nextState,
+            concubines: enforceRosterFavorCaps(current.concubines, nextState.favor),
             hiddenStats: {
               ...current.hiddenStats,
               silver: nextState.silver,
@@ -494,7 +904,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
           let slotIndex = current.time.slotIndex;
           let slotProgress = current.time.slotProgress ?? 0;
           let remaining = Math.max(0, steps);
-          let crossedIntoNextXun = false;
+          let xunTransitions = 0;
 
           while (remaining > 0) {
             const delta = Math.min(1 - slotProgress, remaining);
@@ -507,7 +917,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
               if (slotIndex >= timeSlots.length) {
                 slotIndex = 0;
                 xun += 1;
-                crossedIntoNextXun = true;
+                xunTransitions += 1;
                 if (xun > 3) {
                   xun = 1;
                   month += 1;
@@ -520,15 +930,25 @@ export const useGameFlowStore = create<GameFlowStore>()(
             }
           }
 
-          const nextState = crossedIntoNextXun
+          const nextState = xunTransitions > 0
             ? {
                 ...current.state,
                 stamina: resolveXunStartingStamina(),
               }
             : current.state;
+          const nextConcubines =
+            xunTransitions > 0
+              ? current.concubines.map((consort) => applyConcubinePressureHealthPenalty(consort, xunTransitions))
+              : current.concubines;
+          const nextCustomConsorts =
+            xunTransitions > 0
+              ? current.customConsorts.map((consort) => applyConcubinePressureHealthPenalty(consort, xunTransitions))
+              : current.customConsorts;
 
           return {
             state: nextState,
+            concubines: enforceRosterFavorCaps(nextConcubines, nextState.favor),
+            customConsorts: nextCustomConsorts,
             time: {
               year,
               month,
@@ -547,6 +967,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
         scene: state.scene,
         activeChamberPanel: state.activeChamberPanel,
         activeMapLocation: state.activeMapLocation,
+        activeAffairsSource: state.activeAffairsSource,
         routeId: state.routeId,
         state: state.state,
         hiddenStats: state.hiddenStats,
@@ -560,6 +981,12 @@ export const useGameFlowStore = create<GameFlowStore>()(
         concubineRouteId: state.concubineRouteId,
         concubines: state.concubines,
         customConsorts: state.customConsorts,
+        inventory: state.inventory,
+        merchantLedger: state.merchantLedger,
+        consortInteractionMap: state.consortInteractionMap,
+        kitchenProgress: state.kitchenProgress,
+        medicalProgress: state.medicalProgress,
+        templeProgress: state.templeProgress,
       }),
       merge: (persisted, current) => ({
         ...current,
@@ -567,17 +994,29 @@ export const useGameFlowStore = create<GameFlowStore>()(
         currentView: 'start',
         activeChamberPanel: (persisted as Partial<GameFlowStore>)?.activeChamberPanel ?? 'main',
         activeMapLocation: (persisted as Partial<GameFlowStore>)?.activeMapLocation,
+        activeAffairsSource: (persisted as Partial<GameFlowStore>)?.activeAffairsSource ?? '宫斗事务',
         bondProfile:
           (persisted as Partial<GameFlowStore>)?.bondProfile ??
           buildInitialBondProfile(current.state.routeId, getCurrentXunKey(current.time)),
         concubineRouteId: (persisted as Partial<GameFlowStore>)?.concubineRouteId ?? current.state.routeId,
         concubines:
-          (persisted as Partial<GameFlowStore>)?.concubines ??
-          buildInitialConcubineRoster(
-            (persisted as Partial<GameFlowStore>)?.routeId ?? current.state.routeId,
-            (persisted as Partial<GameFlowStore>)?.customConsorts ?? [],
-          ),
-        customConsorts: (persisted as Partial<GameFlowStore>)?.customConsorts ?? [],
+          (persisted as Partial<GameFlowStore>)?.concubines
+            ? enforceConcubineFavorTierCaps(
+                (persisted as Partial<GameFlowStore>)?.concubines?.map(normalizeConcubineProfile) ?? [],
+                [((persisted as Partial<GameFlowStore>)?.state?.favor ?? current.state.favor)],
+              )
+            : buildRouteConcubines(
+                (persisted as Partial<GameFlowStore>)?.routeId ?? current.state.routeId,
+                ((persisted as Partial<GameFlowStore>)?.customConsorts ?? []).map(normalizeConcubineProfile),
+                (persisted as Partial<GameFlowStore>)?.state?.favor ?? current.state.favor,
+              ),
+        customConsorts: ((persisted as Partial<GameFlowStore>)?.customConsorts ?? []).map(normalizeConcubineProfile),
+        inventory: (persisted as Partial<GameFlowStore>)?.inventory ?? cloneInitialInventory(),
+        merchantLedger: (persisted as Partial<GameFlowStore>)?.merchantLedger ?? {},
+        consortInteractionMap: (persisted as Partial<GameFlowStore>)?.consortInteractionMap ?? {},
+        kitchenProgress: (persisted as Partial<GameFlowStore>)?.kitchenProgress ?? createInitialKitchenProgress(),
+        medicalProgress: (persisted as Partial<GameFlowStore>)?.medicalProgress ?? createInitialMedicalProgress(),
+        templeProgress: (persisted as Partial<GameFlowStore>)?.templeProgress ?? createInitialTempleProgress(),
       }),
     },
   ),

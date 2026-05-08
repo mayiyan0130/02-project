@@ -1,4 +1,4 @@
-import type { BondInteractionOption, BondProfileState, RouteId } from '../types';
+import type { BondInteractionOption, BondProfileState, GameNumericsState, RouteId } from '../types';
 
 const routeBondCopy: Record<RouteId, Pick<BondProfileState, 'npcId' | 'npcName' | 'sceneType' | 'title' | 'summary'>> = {
   lanyinxuguo: {
@@ -56,3 +56,32 @@ export const BOND_INTERACTION_OPTIONS: readonly BondInteractionOption[] = [
   { id: 'cool-distance', label: '语气疏冷', summary: '偏冷淡，刻意拉开分寸。', fallbackToneTag: 'cold' },
   { id: 'gentle-refusal', label: '婉拒靠近', summary: '偏拒斥，明示不愿更近。', fallbackToneTag: 'reject' },
 ] as const;
+
+export interface UnlockableBondCharacter {
+  id: string;
+  name: string;
+  identity: string;
+  summary: string;
+  routeScope: RouteId | 'all';
+  unlockFlag: keyof GameNumericsState['flags'] | string;
+}
+
+const unlockableBondCharacters: readonly UnlockableBondCharacter[] = [
+  {
+    id: 'buziyou',
+    name: '布自游',
+    identity: '御厨',
+    summary:
+      '他是御膳房最稳的掌勺，嘴上总像带着三分玩笑，真正落到你身上的观察却比谁都细，也往往只在剧情真正推进后才会现身于情缘名册。',
+    routeScope: 'all',
+    unlockFlag: 'bondNpcUnlocked:buziyou',
+  },
+] as const;
+
+export const resolveUnlockedBondCharacters = (
+  routeId: RouteId,
+  flags: GameNumericsState['flags'],
+): UnlockableBondCharacter[] =>
+  unlockableBondCharacters.filter(
+    (character) => Boolean(flags?.[character.unlockFlag]) && (character.routeScope === 'all' || character.routeScope === routeId),
+  );

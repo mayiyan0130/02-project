@@ -1,9 +1,8 @@
 import type { NarrativeAgentResponse } from '../types/game';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+import { buildApiUrl } from './apiBaseUrl';
 
 export const fetchNarrativeByTraceId = async (traceId: string): Promise<NarrativeAgentResponse> => {
-  const response = await fetch(`${API_BASE_URL}/api/v1/ai/narrative/${traceId}`);
+  const response = await fetch(buildApiUrl(`/api/v1/ai/narrative/${traceId}`));
 
   if (!response.ok) {
     throw new Error(`剧情补全 AI 调用失败: ${response.status}`);

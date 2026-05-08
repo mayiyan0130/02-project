@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { PalaceDialogueBox } from '../components/dialogue/PalaceDialogueBox';
+import { GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
 import { PalaceStatusBar } from '../components/status/PalaceStatusBar';
 import { GUIDE_TENDENCY_OPTIONS } from '../config/palaceUi';
+import { buildOpeningNarrativeContext } from '../game/data/openingNarrativeProfiles';
 import { requestOpeningDialogueWithFallback, buildLocalOpeningDialogue } from '../game/lib/openingDialogueRuntime';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
 
@@ -41,6 +42,7 @@ export function OpeningDialogueView() {
   const [history, setHistory] = useState<Array<{ speaker: string; text: string }>>([]);
   const [turn, setTurn] = useState(1);
   const playerTitle = resolvePlayerTitle(state.family, state.routeId);
+  const narrativeContext = useMemo(() => buildOpeningNarrativeContext(state.routeId), [state.routeId]);
 
   const buildRequest = (nextTurn: number, nextHistory: Array<{ speaker: string; text: string }>) => ({
     routeId: state.routeId,
@@ -64,10 +66,15 @@ export function OpeningDialogueView() {
       stamina: state.stamina,
       stats: state.stats,
     },
+    npcContext: narrativeContext.npcContext,
+    routeContext: narrativeContext.routeContext,
     timeContext: time,
   });
 
-  const initialRequest = useMemo(() => buildRequest(1, []), [hiddenStats.initialRank, playerTitle, selectedRoute?.label, state, time]);
+  const initialRequest = useMemo(
+    () => buildRequest(1, []),
+    [hiddenStats.initialRank, narrativeContext, playerTitle, selectedRoute?.label, state, time],
+  );
   const [dialogueTurn, setDialogueTurn] = useState(() => buildLocalOpeningDialogue(initialRequest));
   const [loading, setLoading] = useState(false);
   const requestIdRef = useRef(0);
@@ -96,7 +103,7 @@ export function OpeningDialogueView() {
     return () => {
       cancelled = true;
     };
-  }, [hiddenStats.initialRank, playerTitle, selectedRoute?.label, state.family, state.name, state.residenceName, state.routeId]);
+  }, [hiddenStats.initialRank, narrativeContext, playerTitle, selectedRoute?.label, state.family, state.name, state.residenceName, state.routeId]);
 
   const speakerLabel = `${dialogueTurn.speakerIdentity} · ${dialogueTurn.speakerName}`;
   const showChoices = dialogueTurn.mode === 'branch';
@@ -159,15 +166,13 @@ export function OpeningDialogueView() {
         <PetalEffect />
         <PalaceStatusBar />
 
-        <section className="opening-dialogue__stage" aria-label="对话立绘舞台">
-          <div className="opening-dialogue__npc-slot">
-            <img src={npcPortrait} alt="娇娇" className="opening-dialogue__npc-portrait" />
-          </div>
-        </section>
-
-        <PalaceDialogueBox
+        <GlobalDialogueStage
+          sceneLabel="开场对话立绘舞台"
+          portraitLabel="娇娇立绘"
+          portrait={<img src={npcPortrait} alt="娇娇" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--assistant" />}
           ariaLabel="开场对话框"
-          className="palace-dialogue-box--opening"
+          className="global-dialogue-stage--opening global-dialogue-stage--assistant"
+          dialogueClassName="palace-dialogue-box--opening"
           characterIdentity={dialogueTurn.speakerIdentity}
           characterName={dialogueTurn.speakerName}
           content={dialogueTurn.text}

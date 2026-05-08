@@ -77,6 +77,13 @@ export const FAVOR_TIER_TABLE = [
   { label: '独宠', range: [81, 100] as RangeTuple, color: RARITY_COLOR_LEGENDARY, maxCount: 1 },
 ] as const;
 
+export type FavorTierDefinition = (typeof FAVOR_TIER_TABLE)[number];
+
+export const getFavorTierByValue = (favor: number): FavorTierDefinition => {
+  const normalizedFavor = Math.max(PLAYER_FAVOR_RANGE[0], Math.min(PLAYER_FAVOR_RANGE[1], Number(favor ?? 0)));
+  return FAVOR_TIER_TABLE.find((tier) => normalizedFavor >= tier.range[0] && normalizedFavor <= tier.range[1]) ?? FAVOR_TIER_TABLE[0];
+};
+
 export const ATTRIBUTE_STAGE_COLORS = [
   { label: '灰', range: [0, 0] as RangeTuple, color: RARITY_COLOR_NEUTRAL },
   { label: '青', range: [1, 20] as RangeTuple, color: RARITY_COLOR_COMMON },

@@ -1,6 +1,5 @@
 import type { RelationshipToneTag } from '../game/types';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+import { buildApiUrl } from './apiBaseUrl';
 
 export interface RelationshipJudgeRequestPayload {
   routeId: string;
@@ -24,7 +23,7 @@ export interface RelationshipJudgeResponsePayload {
 export const requestRelationshipJudge = async (
   payload: RelationshipJudgeRequestPayload,
 ): Promise<RelationshipJudgeResponsePayload> => {
-  const response = await fetch(`${API_BASE_URL}/api/v1/ai/relationship-judge`, {
+  const response = await fetch(buildApiUrl('/api/v1/ai/relationship-judge'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

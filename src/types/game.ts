@@ -85,9 +85,23 @@ export interface NPCProfile {
   rankId: string;
   palette: PaletteKey;
   disposition: string;
+  familyBackground?: string;
+  biography?: string;
   blackened: number;
   custom: boolean;
-  stats: Partial<PlayerBaseStats>;
+  stats: Partial<
+    PlayerBaseStats & {
+      prestige: number;
+      favor: number;
+      fortune: number;
+      ambition: number;
+      stress: number;
+      intrigue: number;
+      appearance: number;
+      temperament: number;
+      health: number;
+    }
+  >;
 }
 
 export interface DowagerState {

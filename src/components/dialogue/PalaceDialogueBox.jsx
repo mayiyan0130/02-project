@@ -1,3 +1,5 @@
+import { DIALOGUE_CONFIG } from '../../config/dialogueConfig';
+
 /**
  * @typedef {{
  *   id: string
@@ -20,7 +22,7 @@
  *   busy?: boolean
  * }} props
  */
-export function PalaceDialogueBox({
+export function GlobalDialogue({
   characterIdentity,
   characterName,
   content,
@@ -34,9 +36,18 @@ export function PalaceDialogueBox({
 }) {
   const rootClassName = ['palace-dialogue-box', className].filter(Boolean).join(' ');
   const hasOptions = options.length > 0;
+  const speakerLabel =
+    characterIdentity && characterName && characterIdentity !== characterName
+      ? `${characterIdentity} · ${characterName}`
+      : characterName || characterIdentity;
 
   return (
-    <section className={rootClassName} aria-label={ariaLabel}>
+    <section
+      className={rootClassName}
+      aria-label={ariaLabel}
+      data-dialogue-component={DIALOGUE_CONFIG.componentName}
+      data-dialogue-lock={DIALOGUE_CONFIG.lockVersion}
+    >
       {hasOptions ? (
         <div className="palace-dialogue-box__options" role="group" aria-label="对话分支选项">
           {options.map((option) => (
@@ -55,7 +66,7 @@ export function PalaceDialogueBox({
       ) : null}
 
       <div className="palace-dialogue-box__content">
-        <header className="palace-dialogue-box__speaker">{`${characterIdentity} · ${characterName}`}</header>
+        <header className="palace-dialogue-box__speaker">{speakerLabel}</header>
         <div className="palace-dialogue-box__text-container" aria-busy={busy}>
           <p className="palace-dialogue-box__text">{content}</p>
         </div>
@@ -73,3 +84,5 @@ export function PalaceDialogueBox({
     </section>
   );
 }
+
+export const PalaceDialogueBox = GlobalDialogue;

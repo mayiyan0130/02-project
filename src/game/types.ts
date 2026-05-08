@@ -2,6 +2,7 @@ export type RouteId = 'lanyinxuguo' | 'fushengrumeng' | 'yingluoyeting' | 'cheny
 export type SceneId = 'menu' | 'attribute' | 'briefing' | 'dialogue' | 'activity' | 'map';
 export type CurrentView = 'start' | 'route-selection' | 'attribute-assignment' | 'opening-dialogue' | 'map-main' | 'bedchamber';
 export type TimeSlot = '清晨' | '上午' | '中午' | '下午' | '傍晚' | '夜晚' | '深夜';
+export type AffairSourceLabel = '宫斗事务' | '家族事务' | '朝堂事务';
 export type ActivityId =
   | '练习音律'
   | '训练舞技'
@@ -181,6 +182,92 @@ export interface BondInteractionOption {
   label: string;
   summary: string;
   fallbackToneTag: RelationshipToneTag;
+}
+
+export type InventoryItemCategory = 'gift' | 'food' | 'medicine' | 'rare';
+export type InventoryItemRarity = 'green' | 'blue' | 'purple' | 'red';
+
+export interface InventoryItem {
+  itemId: string;
+  name: string;
+  category: InventoryItemCategory;
+  rarity: InventoryItemRarity;
+  quantity: number;
+  price: number;
+  favorDelta: number;
+  healthDelta: number;
+  appearanceDelta: number;
+  temperamentDelta: number;
+  description: string;
+  canSell?: boolean;
+  canRecycle?: boolean;
+  recyclePriceOverride?: number;
+}
+
+export type ConsortPalaceActionId = 'visit' | 'gift' | 'greet' | 'quarrel' | 'punish' | 'win-over' | 'smear';
+
+export interface ConsortDialogueOption {
+  id: string;
+  label: string;
+  effectHint: string;
+  fallbackToneTag: RelationshipToneTag;
+  nextTopic?: string;
+}
+
+export interface ConsortDialogueTurn {
+  mode: 'line' | 'branch';
+  phase: 'continue' | 'finish';
+  speakerIdentity: string;
+  speakerName: string;
+  text: string;
+  nextActionLabel: string;
+  sceneHint?: string;
+  options: ConsortDialogueOption[];
+}
+
+export interface ConsortInteractionProgress {
+  consortId: string;
+  xunKey: string;
+  favorDeltaThisXun: number;
+  affectionDeltaThisXun: number;
+  lastActionId?: ConsortPalaceActionId;
+  lastOptionText?: string;
+  lastToneTag?: RelationshipToneTag;
+  lastReason?: string;
+  lastConfidence?: number;
+  lastSource?: 'ai' | 'fallback';
+}
+
+export interface KitchenProgressState {
+  strollCount: number;
+  buZiyouUnlocked: boolean;
+  buZiyouMet: boolean;
+  buZiyouFavor: number;
+  buZiyouAffinity: number;
+  lastEncounterNpcId?: string;
+  lastToneTag?: RelationshipToneTag;
+}
+
+export interface TempleProgressState {
+  worshipCount: number;
+  prayerCount: number;
+  strollCount: number;
+  dangYiFavor: number;
+  dangYiAffinity: number;
+  lastEncounterNpcId?: string;
+  lastToneTag?: RelationshipToneTag;
+  lastAmbientText?: string;
+}
+
+export interface MedicalProgressState {
+  strollCount: number;
+  consultationCount: number;
+  jianNingMet: boolean;
+  jianNingFavor: number;
+  jianNingAffinity: number;
+  lastEncounterNpcId?: string;
+  lastToneTag?: RelationshipToneTag;
+  lastAmbientText?: string;
 }
 
 export interface ResourceMappingEntry {
