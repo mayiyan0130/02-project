@@ -185,6 +185,7 @@ export function OpeningDialogueView() {
           })) : []}
           onSelectOption={showChoices ? handleSelectTendency : undefined}
           busy={loading}
+          controlsDisabled={false}
         />
       </div>
     </main>

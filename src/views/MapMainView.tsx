@@ -1,11 +1,17 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { AutoCutoutPortrait } from '../components/visual/AutoCutoutPortrait';
 import { GlobalDialogueStage } from '../components/dialogue/GlobalDialogueStage';
 import { PalaceStatusBar } from '../components/status/PalaceStatusBar';
 import type { ChamberPanelId } from '../config/bedchamber';
 import { LOCATION_SCENE_BACKGROUNDS } from '../config/locationSceneBackgrounds';
-import { MAP_GUIDE_LINES, MAP_HOTSPOTS, MAP_SIDEBAR_BUTTONS } from '../config/palaceUi';
+import { buildMapHotspots, MAP_GUIDE_LINES, MAP_SIDEBAR_BUTTONS, type MapHotspotConfig } from '../config/palaceUi';
 import { buildDuNiangShopCatalog, getInventoryRecyclePrice, type DuNiangShopEntry } from '../game/data/inventoryPresets';
+import {
+  requestGongmenToolDialogueWithFallback,
+  type GongmenToolDialogueHistoryEntry,
+  type GongmenToolNpcProfile,
+} from '../game/lib/gongmenToolDialogueRuntime';
+import { traceDialogue } from '../game/lib/dialogueTrace';
 import { canAccessHotSpringByPrestige } from '../game/lib/rankRuntime';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
 import type { AffairSourceLabel } from '../game/types';
@@ -33,23 +39,28 @@ const gongmenNpcProfiles: Record<
   {
     identity: string;
     name: string;
-    portrait: string;
-    dialogueLines: string[];
-    alreadyCutout?: boolean;
-    portraitThreshold?: number;
-    portraitSampleInset?: number;
+	    portrait: string;
+	    dialogueLines: string[];
+	    personality?: string;
+	    summary?: string;
+	    alreadyCutout?: boolean;
+	    portraitThreshold?: number;
+	    portraitSampleInset?: number;
   }
 > = {
   'du-niang': {
     identity: '宫门商贩',
     name: '杜娘',
     portrait: '/assets/characters/women/杜娘.png',
-    dialogueLines: [
-      '杜娘立在宫门阴影下，拢着袖子含笑看你：“娘娘今日来得巧，我这边正好带了两匣新货。要买现成物件，还是把旧物折成银两，都好商量。”',
-      '她抬手轻轻拨开箱笼，露出里面整齐叠好的香囊与药瓶：“宫里走动，人情往来最费银子。娘娘若有看中的，直说便是。”',
-    ],
-    alreadyCutout: true,
-  },
+	    dialogueLines: [
+	      '杜娘立在宫门阴影下，拢着袖子含笑看你：“娘娘今日来得巧，我这边正好带了两匣新货。要买现成物件，还是把旧物折成银两，都好商量。”',
+	      '她抬手轻轻拨开箱笼，露出里面整齐叠好的香囊与药瓶：“宫里走动，人情往来最费银子。娘娘若有看中的，直说便是。”',
+	    ],
+	    personality: '中立、精明、市井、守口如瓶、买卖分明、不入情缘',
+	    summary:
+	      '杜娘是宫门处固定商贩 NPC，负责物品售卖与旧物回收。她消息灵通但不轻易交底，闲谈只能补足口吻与氛围，不得改动交易、库存、银两、时辰或关系硬规则。',
+	    alreadyCutout: true,
+	  },
   aling: {
     identity: '故国旧识',
     name: '阿翎',
@@ -62,6 +73,21 @@ const gongmenNpcProfiles: Record<
   },
 };
 const ASSISTANT_PORTRAIT_SRC = '/assets/dialogue/jiaojiao-final.png';
+const createDialogueId = (prefix: string): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+};
+
+const buildDuNiangLocalSmallTalkText = (historyLength: number): string => {
+  const variants = [
+    '杜娘把袖中账册合上，笑意仍浅：“娘娘若只是闲谈，奴家自然奉陪。只是宫门风紧，买卖归买卖，闲话归闲话，哪一句都得留半分余地。”',
+    '杜娘指尖在货箱铜扣上一点，慢声道：“宫里人来人往，真正值钱的未必是货，也未必是话。娘娘若只想听个热闹，奴家便只说热闹。”',
+    '杜娘抬眼看了看宫门外的风，仍旧笑得稳当：“娘娘放心，闲谈不入账，奴家也不会拿半句闲话去抵银两。”',
+  ];
+  return variants[Math.max(0, historyLength - 1) % variants.length];
+};
 
 export function MapMainView() {
   const {
@@ -80,17 +106,21 @@ export function MapMainView() {
     sellInventoryItem,
   } = useGameFlowStore();
   const [guideStep, setGuideStep] = useState(0);
-  const [selectedHotspotId, setSelectedHotspotId] = useState<(typeof MAP_HOTSPOTS)[number]['id'] | null>(null);
+  const [selectedHotspotId, setSelectedHotspotId] = useState<MapHotspotConfig['id'] | null>(null);
   const [gongmenSceneActive, setGongmenSceneActive] = useState(false);
   const [activeGongmenNpc, setActiveGongmenNpc] = useState<GongmenNpcId | null>(null);
   const [activeTradeMode, setActiveTradeMode] = useState<GongmenTradeMode | null>(null);
   const [gongmenFeedback, setGongmenFeedback] = useState('');
   const [gongmenDialogueStep, setGongmenDialogueStep] = useState(0);
+  const [gongmenAiBusy, setGongmenAiBusy] = useState(false);
+  const [gongmenAiHistory, setGongmenAiHistory] = useState<GongmenToolDialogueHistoryEntry[]>([]);
+  const gongmenAiRequestRef = useRef(0);
   const guideActive = !state.flags.mapGuideFinished;
+  const mapHotspots = useMemo(() => buildMapHotspots(state.residenceName), [state.residenceName]);
 
   const selectedHotspot = useMemo(
-    () => MAP_HOTSPOTS.find((hotspot) => hotspot.id === selectedHotspotId) ?? null,
-    [selectedHotspotId],
+    () => mapHotspots.find((hotspot) => hotspot.id === selectedHotspotId) ?? null,
+    [mapHotspots, selectedHotspotId],
   );
   const selectedHotspotQuickActions = useMemo<HotspotQuickAction[]>(() => {
     if (!selectedHotspot) {
@@ -123,6 +153,14 @@ export function MapMainView() {
   const gongmenSeed = useMemo(
     () => `${state.routeId}:${time.year}-${time.month}-${time.xun}`,
     [state.routeId, time.month, time.xun, time.year],
+  );
+  const gongmenSaveId = useMemo(() => `local:${state.routeId}:${encodeURIComponent(state.name)}`, [state.name, state.routeId]);
+  const gongmenSessionIds = useMemo(
+    () => ({
+      'du-niang': createDialogueId('session-gongmen-du-niang'),
+      aling: createDialogueId('session-gongmen-aling'),
+    }),
+    [state.name, state.routeId],
   );
   const duNiangCatalog = useMemo(() => buildDuNiangShopCatalog(gongmenSeed), [gongmenSeed]);
   const gongmenNpcButtons = useMemo(
@@ -184,11 +222,14 @@ export function MapMainView() {
   }, [guideActive, guideStep, mapEventText, selectedHotspot]);
 
   const resetGongmenScene = () => {
+    gongmenAiRequestRef.current += 1;
     setGongmenSceneActive(false);
     setActiveGongmenNpc(null);
     setActiveTradeMode(null);
     setGongmenFeedback('');
     setGongmenDialogueStep(0);
+    setGongmenAiBusy(false);
+    setGongmenAiHistory([]);
   };
 
   const jumpToChamberPanel = (panelId: 'consorts' | 'stats' | 'chronicle' | 'bond' | 'main') => {
@@ -226,17 +267,30 @@ export function MapMainView() {
     }
   };
 
-  const handleHotspot = (hotspotId: (typeof MAP_HOTSPOTS)[number]['id']) => {
+  const handleHotspot = (hotspotId: MapHotspotConfig['id']) => {
     if (guideActive) {
       setMapEventText('先把地图和入口认熟，待会儿回寝殿后，娘娘再随时外出。');
       return;
     }
     resetGongmenScene();
+    if (hotspotId === state.residenceName) {
+      setSelectedHotspotId(null);
+      setMapEventText('');
+      enterMainChamber();
+      return;
+    }
     setSelectedHotspotId(hotspotId);
   };
 
   const handleEnterHotspot = () => {
     if (!selectedHotspot) return;
+
+    if (selectedHotspot.id === state.residenceName) {
+      setSelectedHotspotId(null);
+      setMapEventText('');
+      enterMainChamber();
+      return;
+    }
 
     if (selectedHotspot.id === '华清池' && !canAccessHotSpringByPrestige(state.prestige)) {
       setSelectedHotspotId(null);
@@ -261,14 +315,22 @@ export function MapMainView() {
       return;
     }
 
+    if (selectedHotspot.id === state.residenceName) {
+      enterMainChamber();
+      return;
+    }
+
     enterMainChamber(selectedHotspot.id);
   };
 
   const handleOpenGongmenNpc = (npcId: GongmenNpcId) => {
+    gongmenAiRequestRef.current += 1;
     setActiveGongmenNpc(npcId);
     setActiveTradeMode(null);
     setGongmenFeedback('');
     setGongmenDialogueStep(0);
+    setGongmenAiBusy(false);
+    setGongmenAiHistory([]);
   };
 
   const handleHotspotQuickAction = (action: HotspotQuickAction) => {
@@ -289,8 +351,79 @@ export function MapMainView() {
   };
 
   const handleTradeModeChange = (mode: GongmenTradeMode) => {
+    gongmenAiRequestRef.current += 1;
+    setGongmenAiBusy(false);
     setActiveTradeMode(mode);
     setGongmenFeedback(mode === 'buy' ? '杜娘把货箱往前一推，示意你自己挑。' : '杜娘垂眼扫过你的背包，等着你开口回收。');
+  };
+
+  const handleDuNiangSmallTalk = () => {
+    const profile = gongmenNpcProfiles['du-niang'];
+
+    const toolProfile: GongmenToolNpcProfile = {
+      id: 'tool_du_niang',
+      identity: profile.identity,
+      name: profile.name,
+      personality: profile.personality ?? '中立、精明、守口如瓶',
+      summary: profile.summary ?? '杜娘是宫门处固定商贩 NPC。',
+    };
+
+    const playerTurn: GongmenToolDialogueHistoryEntry = {
+      speaker: `${state.family || '宫中人'} · ${state.name}`,
+      text: '只是同杜娘闲谈几句，不买也不卖。',
+    };
+    const nextHistory = [...gongmenAiHistory, playerTurn].slice(-6);
+    const localText = buildDuNiangLocalSmallTalkText(nextHistory.length);
+    const localSpeaker = `${toolProfile.identity} · ${toolProfile.name}`;
+    const requestToken = ++gongmenAiRequestRef.current;
+
+    setActiveTradeMode(null);
+    setGongmenFeedback(localText);
+    setGongmenAiHistory([...nextHistory, { speaker: localSpeaker, text: localText }].slice(-6));
+
+    if (gongmenAiBusy) {
+      setGongmenAiBusy(false);
+      return;
+    }
+
+    setGongmenAiBusy(true);
+    void requestGongmenToolDialogueWithFallback({
+        saveId: gongmenSaveId,
+        sessionId: gongmenSessionIds['du-niang'],
+        requestId: createDialogueId('request-gongmen-du-niang'),
+        profile: toolProfile,
+        state,
+        time,
+        history: nextHistory,
+      })
+      .then((turn) => {
+        if (gongmenAiRequestRef.current !== requestToken) {
+          return;
+        }
+
+      const speaker = `${turn.speakerIdentity} · ${turn.speakerName}`;
+      setGongmenFeedback(turn.text);
+      setGongmenAiHistory([...nextHistory, { speaker, text: turn.text }].slice(-6));
+      traceDialogue({
+        npcId: toolProfile.id,
+        sceneId: `gongmen:${toolProfile.id}`,
+        sessionId: gongmenSessionIds['du-niang'],
+        turnsRead: turn.sessionMemoryReadTurnCount,
+        candidatesRead: turn.sessionMemoryReadCandidateCount,
+        candidatesWritten: turn.sessionMemoryWrittenCandidateCount,
+        relationCandidatesRead: turn.sessionMemoryReadRelationCandidateCount,
+        relationCandidatesWritten: turn.sessionMemoryWrittenRelationCandidateCount,
+        relationPromotedCount: turn.relationMemoryPromotedCount,
+        relationRejectedCount: turn.relationMemoryRejectedCount,
+        relationEntryCount: turn.relationMemoryTotalEntryCount,
+        usedFallback: turn.usedFallback,
+      });
+      })
+      .finally(() => {
+        if (gongmenAiRequestRef.current === requestToken) {
+          setGongmenAiBusy(false);
+        }
+      });
   };
 
   const handleBuyFromDuNiang = (entry: DuNiangShopEntry & { remainingStock: number | null }) => {
@@ -328,13 +461,15 @@ export function MapMainView() {
 
         {!gongmenSceneActive ? (
           <section className="map-main__hotspot-layer" aria-label="宫廷地图">
-            {MAP_HOTSPOTS.map((hotspot) => (
+            {mapHotspots.map((hotspot) => (
               <button
                 key={hotspot.id}
                 type="button"
                 className={`map-main__hotspot ${hotspot.vertical ? 'is-vertical' : ''} ${
                   hotspot.emphasis === 'large' ? 'is-large' : ''
-                } ${selectedHotspotId === hotspot.id ? 'is-active' : ''}`}
+                } ${selectedHotspotId === hotspot.id ? 'is-active' : ''} ${
+                  hotspot.id === state.residenceName ? 'is-player-residence' : ''
+                }`}
                 style={{
                   top: hotspot.top,
                   left: hotspot.left,
@@ -358,7 +493,7 @@ export function MapMainView() {
             <p>{selectedHotspot.description}</p>
             <div className={`map-main__event-actions ${selectedHotspot.id === '宫门' ? 'map-main__event-actions--gongmen' : ''}`}>
               <button type="button" onClick={handleEnterHotspot}>
-                进入此处
+                {selectedHotspot.id === state.residenceName ? '回宫' : '进入此处'}
               </button>
               {selectedHotspotQuickActions.map((action) => (
                 <button key={action.id} type="button" onClick={() => handleHotspotQuickAction(action)} title={action.summary}>
@@ -437,6 +572,8 @@ export function MapMainView() {
                 }
                 onNextAction={() => {
                   if (gongmenFeedback) {
+                    gongmenAiRequestRef.current += 1;
+                    setGongmenAiBusy(false);
                     setGongmenFeedback('');
                     return;
                   }
@@ -453,12 +590,15 @@ export function MapMainView() {
             </section>
 
             <aside className="map-main__gongmen-actions" aria-label={`${activeNpcProfile.name} 操作栏`}>
-              {activeGongmenNpc === 'du-niang' ? (
-                <>
-                  <button type="button" className={activeTradeMode === 'buy' ? 'is-active' : ''} onClick={() => handleTradeModeChange('buy')}>
-                    购买
-                  </button>
-                  <button type="button" className={activeTradeMode === 'sell' ? 'is-active' : ''} onClick={() => handleTradeModeChange('sell')}>
+	              {activeGongmenNpc === 'du-niang' ? (
+	                <>
+	                  <button type="button" onClick={handleDuNiangSmallTalk} aria-busy={gongmenAiBusy}>
+	                    闲谈
+	                  </button>
+	                  <button type="button" className={activeTradeMode === 'buy' ? 'is-active' : ''} onClick={() => handleTradeModeChange('buy')}>
+	                    购买
+	                  </button>
+	                  <button type="button" className={activeTradeMode === 'sell' ? 'is-active' : ''} onClick={() => handleTradeModeChange('sell')}>
                     售卖
                   </button>
                   <p>杜娘负责宫门商店与旧物回收，交易即时结算，不额外消耗时辰与体力。</p>
@@ -543,7 +683,7 @@ export function MapMainView() {
             portraitLabel="娇娇立绘"
             portrait={<img src={ASSISTANT_PORTRAIT_SRC} alt="娇娇" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--assistant" />}
             ariaLabel="地图引导对话框"
-            className="global-dialogue-stage--map-guide global-dialogue-stage--assistant"
+            className="global-dialogue-stage--map global-dialogue-stage--assistant"
             dialogueClassName="palace-dialogue-box--map"
             characterIdentity="贴身宫女"
             characterName="娇娇"

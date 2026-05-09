@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { GlobalDialogueStage } from '../dialogue/GlobalDialogueStage';
 import { AutoCutoutPortrait } from '../visual/AutoCutoutPortrait';
+import { trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
 import { requestDowagerDialogueWithFallback } from '../../game/lib/dowagerDialogueRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type { ConsortDialogueOption, ConsortDialogueTurn } from '../../game/types';
@@ -29,8 +30,6 @@ const DOWAGER_PERSONA = {
     '不可直接质疑她是否爱过自己的儿子，不可轻提储位之争旧账，不可用轻浮亲昵称呼。',
 } as const;
 
-const trimHistory = (history: HistoryEntry[]): HistoryEntry[] => history.slice(-6);
-
 export function DowagerAudiencePanel({ onLeave }: DowagerAudiencePanelProps) {
   const { state, time, hiddenStats } = useGameFlowStore();
   const [dialogueTurn, setDialogueTurn] = useState<ConsortDialogueTurn | null>(null);
@@ -53,7 +52,7 @@ export function DowagerAudiencePanel({ onLeave }: DowagerAudiencePanelProps) {
       historyOverride?: HistoryEntry[];
     },
   ) => {
-    const activeHistory = trimHistory(overrides?.historyOverride ?? history);
+    const activeHistory = trimDialogueHistory(overrides?.historyOverride ?? history);
 
     return {
       routeId: state.routeId,
@@ -115,7 +114,7 @@ export function DowagerAudiencePanel({ onLeave }: DowagerAudiencePanelProps) {
 
     setDialogueTurn(nextTurn);
     setHistory((currentHistory) =>
-      trimHistory([...(overrides?.historyOverride ?? currentHistory), { speaker: speakerLabel, text: nextTurn.text }]),
+      trimDialogueHistory([...(overrides?.historyOverride ?? currentHistory), { speaker: speakerLabel, text: nextTurn.text }]),
     );
   };
 
@@ -133,6 +132,16 @@ export function DowagerAudiencePanel({ onLeave }: DowagerAudiencePanelProps) {
     }
 
     setBusy(true);
+    setDialogueTurn((currentTurn) =>
+      currentTurn
+        ? {
+            ...currentTurn,
+            mode: 'line',
+            options: [],
+            nextActionLabel: '',
+          }
+        : currentTurn,
+    );
     setActiveActionId(actionId);
     setActiveActionLabel(actionLabel);
 
@@ -158,7 +167,7 @@ export function DowagerAudiencePanel({ onLeave }: DowagerAudiencePanelProps) {
       return;
     }
 
-    const nextHistory = trimHistory([
+    const nextHistory = trimDialogueHistory([
       ...history,
       {
         speaker: `${playerRankLabel} · ${state.name}`,

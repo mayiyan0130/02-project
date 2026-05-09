@@ -6,15 +6,32 @@ import type { ConcubineProfile } from '../../game/types';
 
 interface HaremPalaceViewProps {
   concubines: ConcubineProfile[];
+  playerResidenceName: string;
+  playerName: string;
+  playerRankLabel: string;
 }
 
 interface HallOccupancy {
   hallId: string;
   residence: string;
   residents: ConcubineProfile[];
+  hasPlayerResident: boolean;
 }
 
-export function HaremPalaceView({ concubines }: HaremPalaceViewProps) {
+const matchesHallResidence = (residence: string, palaceLabel: string, hallSuffix: string): boolean => {
+  const normalizedResidence = String(residence ?? '').trim();
+  if (normalizedResidence.length === 0) {
+    return false;
+  }
+
+  if (normalizedResidence === palaceLabel) {
+    return hallSuffix === '主殿';
+  }
+
+  return normalizedResidence === `${palaceLabel}${hallSuffix}`;
+};
+
+export function HaremPalaceView({ concubines, playerResidenceName, playerName, playerRankLabel }: HaremPalaceViewProps) {
   const [selectedPalaceId, setSelectedPalaceId] = useState<HaremPalaceId | null>(null);
   const [selectedHallId, setSelectedHallId] = useState<string | null>(null);
   const [activeResidentId, setActiveResidentId] = useState<string | null>(null);
@@ -53,16 +70,17 @@ export function HaremPalaceView({ concubines }: HaremPalaceViewProps) {
     return selectedPalace.halls.map((hall) => {
       const residence = `${selectedPalace.label}${hall.suffix}`;
       const residents = concubines.filter(
-        (concubine) => concubine.status === 'live' && concubine.residence === residence,
+        (concubine) => concubine.status === 'live' && matchesHallResidence(concubine.residence, selectedPalace.label, hall.suffix),
       );
 
       return {
         hallId: hall.id,
         residence,
         residents,
+        hasPlayerResident: matchesHallResidence(playerResidenceName, selectedPalace.label, hall.suffix),
       };
     });
-  }, [concubines, selectedPalace]);
+  }, [concubines, playerResidenceName, selectedPalace]);
 
   const selectedHallOccupancy = useMemo(
     () => hallOccupancy.find((entry) => entry.hallId === selectedHallId) ?? null,
@@ -75,9 +93,12 @@ export function HaremPalaceView({ concubines }: HaremPalaceViewProps) {
   );
 
   const footerCopy = selectedHall
-    ? selectedHallOccupancy && selectedHallOccupancy.residents.length > 0
-      ? `当前查看：${selectedHall.suffix}。现居：${selectedHallOccupancy.residents
-          .map((resident) => `${resident.rankLabel} ${resident.name}`)
+    ? selectedHallOccupancy && (selectedHallOccupancy.residents.length > 0 || selectedHallOccupancy.hasPlayerResident)
+      ? `当前查看：${selectedHall.suffix}。现居：${[
+          selectedHallOccupancy.hasPlayerResident ? `${playerRankLabel} ${playerName}（居此）` : null,
+          ...selectedHallOccupancy.residents.map((resident) => `${resident.rankLabel} ${resident.name}`),
+        ]
+          .filter((entry): entry is string => Boolean(entry))
           .join('、')}。`
       : `当前查看：${selectedHall.suffix}。此殿当前暂无妃嫔入住。`
     : selectedPalace
@@ -86,7 +107,7 @@ export function HaremPalaceView({ concubines }: HaremPalaceViewProps) {
 
   const renderHallButton = (hall: (typeof HAREM_PALACES)[number]['halls'][number]) => {
     const occupancy = hallOccupancy.find((entry) => entry.hallId === hall.id);
-    const hasResidents = Boolean(occupancy && occupancy.residents.length > 0);
+    const hasResidents = Boolean(occupancy && (occupancy.residents.length > 0 || occupancy.hasPlayerResident));
 
     return (
       <button
@@ -97,20 +118,28 @@ export function HaremPalaceView({ concubines }: HaremPalaceViewProps) {
           setSelectedHallId(hall.id);
           if (occupancy && occupancy.residents.length > 0) {
             setActiveResidentId(occupancy.residents[0].id);
+            return;
           }
+          setActiveResidentId(null);
         }}
       >
         <strong>{hall.suffix}</strong>
         <div className="harem-palace-view__hall-residents">
+          {occupancy?.hasPlayerResident ? (
+            <span className="harem-palace-view__hall-resident">
+              {playerRankLabel} {playerName}
+            </span>
+          ) : null}
           {hasResidents ? (
             occupancy?.residents.map((resident) => (
               <span key={resident.id} className="harem-palace-view__hall-resident">
                 {resident.rankLabel} {resident.name}
               </span>
             ))
-          ) : (
+          ) : null}
+          {!hasResidents ? (
             <span className="harem-palace-view__hall-empty">暂无妃嫔</span>
-          )}
+          ) : null}
         </div>
       </button>
     );

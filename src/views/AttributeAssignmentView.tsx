@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { attributeFields } from '../game/data/config';
 import { useGameFlowStore } from '../game/store/gameFlowStore';
-import { usePlayerStore } from '../store/playerStore';
 
 const randomInt = (min: number, max: number): number => Math.floor(Math.random() * (max - min + 1)) + min;
 
@@ -50,7 +49,6 @@ const formatDisplayedValue = (key: string, value: number, locked: boolean): numb
 
 export function AttributeAssignmentView() {
   const { state, selectedRoute, patchState, setAttributeValue, setCurrentView, setScene } = useGameFlowStore();
-  const bootstrapPlayer = usePlayerStore((store) => store.bootstrapFromRoute);
 
   const locked = Boolean(selectedRoute?.statsLocked);
   const pointsLeftDisplay = useMemo(() => {
@@ -139,13 +137,6 @@ export function AttributeAssignmentView() {
               type="button"
               className="attribute-assignment__confirm"
               onClick={() => {
-                const openingRouteByGameRoute: Record<string, 'huanghou' | 'guifei' | 'cairen' | 'gongnv'> = {
-                  lanyinxuguo: 'huanghou',
-                  fushengrumeng: 'guifei',
-                  yingluoyeting: 'gongnv',
-                  chenyuansucuo: 'cairen',
-                };
-                bootstrapPlayer(openingRouteByGameRoute[state.routeId] ?? 'gongnv', state.name);
                 setScene('briefing');
                 setCurrentView('opening-dialogue');
               }}

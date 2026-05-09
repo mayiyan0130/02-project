@@ -13,6 +13,8 @@ import {
   requestMiaoYinDialogueWithFallback,
   type MiaoYinDialogueActor,
 } from '../../game/lib/miaoyinDialogueRuntime';
+import { clampToRange, createDialogueId, trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
+import { traceDialogue } from '../../game/lib/dialogueTrace';
 import { requestMiaoYinAmbientWithFallback } from '../../game/lib/miaoyinAmbientRuntime';
 import { requestRelationshipJudgementWithFallback } from '../../game/lib/relationshipJudgeRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
@@ -43,8 +45,6 @@ interface MiaoYinSceneActor extends MiaoYinDialogueActor {
 const LIANQIAO_PORTRAIT_SRC = new URL('../../../picture/npc/连翘.jpg', import.meta.url).href;
 const EMPEROR_PORTRAIT_SRC = new URL('../../../picture/man/皇帝.jpg', import.meta.url).href;
 
-const trimHistory = (history: HistoryEntry[]): HistoryEntry[] => history.slice(-6);
-const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 const hashSeed = (seed: string): number =>
   seed.split('').reduce((sum, char, index) => sum + char.charCodeAt(0) * (index + 27), 0);
 const toXunIndex = (year: number, month: number, xun: number): number => year * 36 + (month - 1) * 3 + xun;
@@ -113,6 +113,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
   const [showSignUpPicker, setShowSignUpPicker] = useState(false);
 
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
+  const saveId = useMemo(() => `local:${state.routeId}:${encodeURIComponent(state.name)}`, [state.name, state.routeId]);
   const dialogueOptions = dialogueTurn?.options ?? [];
   const isLianQiaoMet = Boolean(state.flags.isLianQiaoMet || musicHallProgress.lianQiaoMet);
   const eligibleConsorts = useMemo(
@@ -141,9 +142,13 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
       historyOverride?: HistoryEntry[];
     },
   ) => {
-    const activeHistory = trimHistory(overrides?.historyOverride ?? history);
+    const activeHistory = trimDialogueHistory(overrides?.historyOverride ?? history);
 
     return {
+      saveId,
+      sessionId: `session:miaoyin:${actor.id}:${state.routeId}:${encodeURIComponent(state.name)}`,
+      requestId: createDialogueId(`request-miaoyin-${actor.id}`),
+      sceneId: `miaoyin:${actor.id}`,
       routeId: state.routeId,
       playerName: state.name,
       playerRank: playerRankLabel,
@@ -201,11 +206,26 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
     const payload = buildPayload(actor, topic, actionId, actionLabel, overrides);
     const nextTurn = await requestMiaoYinDialogueWithFallback(payload, actor);
     const speakerLabel = `${nextTurn.speakerIdentity} · ${nextTurn.speakerName}`;
+    traceDialogue({
+      npcId: actor.id,
+      sceneId: payload.sceneId,
+      sessionId: payload.sessionId,
+      turnsRead: nextTurn.sessionMemory?.readTurnCount ?? 0,
+      candidatesRead: nextTurn.sessionMemory?.readMemoryCandidateCount ?? 0,
+      candidatesWritten: nextTurn.sessionMemory?.writtenMemoryCandidateCount ?? nextTurn.memoryCandidates?.length ?? 0,
+      relationCandidatesRead: nextTurn.sessionMemory?.readRelationCandidateCount ?? 0,
+      relationCandidatesWritten:
+        nextTurn.sessionMemory?.writtenRelationCandidateCount ?? nextTurn.relationCandidates?.length ?? 0,
+      relationPromotedCount: nextTurn.relationMemory?.promotedCount ?? 0,
+      relationRejectedCount: nextTurn.relationMemory?.rejectedCount ?? 0,
+      relationEntryCount: nextTurn.relationMemory?.totalEntryCount ?? 0,
+      usedFallback: Boolean(nextTurn.usedFallback),
+    });
 
     setDialogueTurn(nextTurn);
     setSceneHint(nextTurn.sceneHint ?? '');
     setHistory((currentHistory) =>
-      trimHistory([...(overrides?.historyOverride ?? currentHistory), { speaker: speakerLabel, text: nextTurn.text }]),
+      trimDialogueHistory([...(overrides?.historyOverride ?? currentHistory), { speaker: speakerLabel, text: nextTurn.text }]),
     );
   };
 
@@ -490,7 +510,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
       return;
     }
 
-    const nextHistory = trimHistory([
+    const nextHistory = trimDialogueHistory([
       ...history,
       {
         speaker: `${playerRankLabel} · ${state.name}`,
@@ -519,8 +539,8 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
         const summary = applyConsortRelationshipJudgement(activeActor.id, 'greet', judgement);
         const nextActor = {
           ...activeActor,
-          currentGoodwill: clamp(activeActor.currentGoodwill + summary.appliedFavorDelta, -100, 100),
-          currentAffection: clamp(activeActor.currentAffection + summary.appliedAffectionDelta, 0, 100),
+          currentGoodwill: clampToRange(activeActor.currentGoodwill + summary.appliedFavorDelta, -100, 100),
+          currentAffection: clampToRange(activeActor.currentAffection + summary.appliedAffectionDelta, 0, 100),
         };
         setActiveActor(nextActor);
 
@@ -534,8 +554,8 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
       }
 
       if (activeActor.actorKind === 'lianqiao') {
-        const nextFavor = clamp(musicHallProgress.lianQiaoFavor + judgement.favorDelta, -100, 100);
-        const nextAffection = clamp(musicHallProgress.lianQiaoAffection + judgement.affectionDelta, 0, 100);
+      const nextFavor = clampToRange(musicHallProgress.lianQiaoFavor + judgement.favorDelta, -100, 100);
+      const nextAffection = clampToRange(musicHallProgress.lianQiaoAffection + judgement.affectionDelta, 0, 100);
         patchMusicHallProgress({
           lianQiaoFavor: nextFavor,
           lianQiaoAffection: nextAffection,
@@ -572,7 +592,7 @@ export function MiaoYinHallView({ concubines }: MiaoYinHallViewProps) {
         return;
       }
 
-      const emperorFavorDelta = clamp(judgement.favorDelta + judgement.affectionDelta, -1, 1);
+      const emperorFavorDelta = clampToRange(judgement.favorDelta + judgement.affectionDelta, -1, 1);
       applyStoryEffects({ favor: emperorFavorDelta });
       await runNarrativeTurn(activeActor, 'follow-up', 'emperor-follow-up', activeEncounterLabel, {
         actionResult: `${judgement.reason} 这一句已落进圣意里。`,

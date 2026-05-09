@@ -9,6 +9,7 @@ import {
   requestBaohuaDialogueWithFallback,
   type BaohuaDialogueActor,
 } from '../../game/lib/baohuaDialogueRuntime';
+import { clampToRange, trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
 import { requestRelationshipJudgementWithFallback } from '../../game/lib/relationshipJudgeRuntime';
 import { requestTempleAmbientWithFallback } from '../../game/lib/templeAmbientRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
@@ -34,8 +35,6 @@ interface BaohuaSceneActor extends BaohuaDialogueActor {
 
 const DANGYI_PORTRAIT_SRC = '/assets/characters/men/dangyi.png';
 const DOWAGER_PORTRAIT_SRC = new URL('../../../picture/npc/太后.jpg', import.meta.url).href;
-const trimHistory = (history: HistoryEntry[]): HistoryEntry[] => history.slice(-6);
-const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 const hashSeed = (seed: string): number =>
   seed.split('').reduce((sum, char, index) => sum + char.charCodeAt(0) * (index + 19), 0);
 
@@ -120,7 +119,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
       historyOverride?: HistoryEntry[];
     },
   ) => {
-    const activeHistory = trimHistory(overrides?.historyOverride ?? history);
+    const activeHistory = trimDialogueHistory(overrides?.historyOverride ?? history);
 
     return {
       routeId: state.routeId,
@@ -184,7 +183,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
     setDialogueTurn(nextTurn);
     setSceneHint(nextTurn.sceneHint ?? '');
     setHistory((currentHistory) =>
-      trimHistory([...(overrides?.historyOverride ?? currentHistory), { speaker: speakerLabel, text: nextTurn.text }]),
+      trimDialogueHistory([...(overrides?.historyOverride ?? currentHistory), { speaker: speakerLabel, text: nextTurn.text }]),
     );
   };
 
@@ -360,7 +359,7 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
       return;
     }
 
-    const nextHistory = trimHistory([
+    const nextHistory = trimDialogueHistory([
       ...history,
       {
         speaker: `${playerRankLabel} · ${state.name}`,
@@ -389,8 +388,8 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
         const summary = applyConsortRelationshipJudgement(activeActor.consortId, 'greet', judgement);
         const nextActor = {
           ...activeActor,
-          currentGoodwill: clamp(activeActor.currentGoodwill + summary.appliedFavorDelta, -100, 100),
-          currentAffection: clamp(activeActor.currentAffection + summary.appliedAffectionDelta, 0, 100),
+          currentGoodwill: clampToRange(activeActor.currentGoodwill + summary.appliedFavorDelta, -100, 100),
+          currentAffection: clampToRange(activeActor.currentAffection + summary.appliedAffectionDelta, 0, 100),
         };
         setActiveActor(nextActor);
 
@@ -404,8 +403,8 @@ export function BaohuaHallView({ concubines }: BaohuaHallViewProps) {
       }
 
       if (activeActor.actorKind === 'dangyi') {
-        const nextFavor = clamp(templeProgress.dangYiFavor + judgement.favorDelta, -100, 100);
-        const nextAffinity = clamp(templeProgress.dangYiAffinity + judgement.affectionDelta, 0, 100);
+      const nextFavor = clampToRange(templeProgress.dangYiFavor + judgement.favorDelta, -100, 100);
+      const nextAffinity = clampToRange(templeProgress.dangYiAffinity + judgement.affectionDelta, 0, 100);
         patchTempleProgress({
           dangYiFavor: nextFavor,
           dangYiAffinity: nextAffinity,

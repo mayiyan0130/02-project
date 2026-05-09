@@ -183,6 +183,89 @@ export interface OpeningDialogueResponse {
 
 export type RelationshipToneTag = 'friendly' | 'flirt' | 'cold' | 'reject' | 'neutral';
 
+export interface DialogueMemoryCandidate {
+  scope: 'session' | 'relation';
+  type: 'interaction' | 'gift' | 'conflict' | 'promise' | 'preference' | 'boundary';
+  summary: string;
+  importance: 'low' | 'medium' | 'high';
+  confidence: number;
+  source: 'ai' | 'system';
+  status: 'candidate';
+}
+
+export interface DialogueRelationCandidate {
+  candidateType: 'rapport' | 'gift' | 'conflict' | 'promise' | 'preference' | 'boundary';
+  scope: 'relation';
+  summary: string;
+  importance: 'low' | 'medium' | 'high';
+  confidence: number;
+  source: 'ai' | 'system';
+  status: 'candidate';
+  sourceEventId: string;
+  promotable: boolean;
+  dedupeKey: string;
+  reason: string;
+}
+
+export type LongTermRelationType = 'familiarity' | 'trust' | 'affinity' | 'dependency';
+
+export interface DialogueRelationMemoryEntrySummary {
+  entryId: string;
+  relationType: LongTermRelationType;
+  candidateType: DialogueRelationCandidate['candidateType'];
+  summary: string;
+  sceneId: string;
+  sourceEventId: string;
+  dedupeKey: string;
+  promotedAt: string;
+  acceptedRule: string;
+}
+
+export interface DialogueRelationPromotionRejectedCandidate {
+  dedupeKey: string;
+  candidateType: DialogueRelationCandidate['candidateType'];
+  reason: string;
+}
+
+export interface DialogueRelationMemoryInfo {
+  enabled: boolean;
+  totalEntryCount: number;
+  sceneEntryCount: number;
+  snapshotHighlights: Array<{
+    relationType: LongTermRelationType;
+    summary: string;
+  }>;
+  reviewedCount: number;
+  promotedCount: number;
+  rejectedCount: number;
+  duplicateCount: number;
+  promotedEntries: DialogueRelationMemoryEntrySummary[];
+  rejectedCandidates: DialogueRelationPromotionRejectedCandidate[];
+}
+
+export interface DialogueAffectHint {
+  key: 'trust' | 'affection' | 'tension' | 'suspicion' | 'mood';
+  direction: 'up' | 'down' | 'flat';
+  reason: string;
+  confidence: number;
+}
+
+export interface DialogueSessionMemoryInfo {
+  enabled: boolean;
+  readTurnCount: number;
+  readMemoryCandidateCount: number;
+  writtenMemoryCandidateCount: number;
+  readRelationCandidateCount: number;
+  writtenRelationCandidateCount: number;
+  totalTurnCount: number;
+  totalExchangeCount: number;
+  recentTurnCount: number;
+  recentMemoryCandidateCount: number;
+  recentRelationCandidateCount: number;
+  recentSummary?: string;
+  retrievedRefs: string[];
+}
+
 export interface ConsortDialogueOption {
   id: string;
   label: string;
@@ -192,6 +275,11 @@ export interface ConsortDialogueOption {
 }
 
 export interface ConsortDialogueRequest {
+  saveId?: string;
+  sessionId?: string;
+  requestId?: string;
+  sceneId?: string;
+  strictAi?: boolean;
   routeId: string;
   playerName: string;
   playerRank: string;
@@ -254,6 +342,11 @@ export interface ConsortDialogueResponse {
   nextActionLabel: string;
   sceneHint?: string;
   options: ConsortDialogueOption[];
+  memoryCandidates?: DialogueMemoryCandidate[];
+  relationCandidates?: DialogueRelationCandidate[];
+  affectHints?: DialogueAffectHint[];
+  sessionMemory?: DialogueSessionMemoryInfo;
+  relationMemory?: DialogueRelationMemoryInfo;
 }
 
 export interface RelationshipJudgeRequest {

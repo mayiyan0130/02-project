@@ -17,6 +17,8 @@ import { TempleAmbientService } from './modules/ai/templeAmbientService';
 import { FoundationConfigRegistry } from './modules/foundation/configRegistry';
 import { FoundationRepository } from './modules/foundation/repository';
 import { FoundationService } from './modules/foundation/service';
+import { RelationMemoryService } from './modules/memory/relationMemoryService';
+import { SessionMemoryService } from './modules/memory/sessionMemoryService';
 import { registerLocalCors } from './plugins/localCors';
 import { registerFoundationRoutes } from './routes/foundationRoutes';
 
@@ -27,22 +29,38 @@ export const buildApp = async (runtimeEnv: ServerEnv = readEnv()) => {
     apiKey: runtimeEnv.statAiApiKey || runtimeEnv.eponeApiKey,
     baseUrl: runtimeEnv.statAiBaseUrl || runtimeEnv.eponeBaseUrl,
     timeoutMs: runtimeEnv.aiTimeoutMs,
+    wireApi: runtimeEnv.statAiWireApi,
+    reasoningEffort: runtimeEnv.aiReasoningEffort,
+    disableResponseStorage: runtimeEnv.disableResponseStorage,
   });
   const textAiClient = new EponeClient({
     apiKey: runtimeEnv.textAiApiKey || runtimeEnv.eponeApiKey,
     baseUrl: runtimeEnv.textAiBaseUrl || runtimeEnv.eponeBaseUrl,
     timeoutMs: runtimeEnv.aiTimeoutMs,
+    wireApi: runtimeEnv.textAiWireApi,
+    reasoningEffort: runtimeEnv.aiReasoningEffort,
+    disableResponseStorage: runtimeEnv.disableResponseStorage,
   });
   const relationshipJudgeAiClient = new EponeClient({
     apiKey: runtimeEnv.relationshipJudgeApiKey || runtimeEnv.textAiApiKey || runtimeEnv.eponeApiKey,
     baseUrl: runtimeEnv.relationshipJudgeBaseUrl || runtimeEnv.textAiBaseUrl || runtimeEnv.eponeBaseUrl,
     timeoutMs: runtimeEnv.aiTimeoutMs,
+    wireApi: runtimeEnv.relationshipJudgeWireApi,
+    reasoningEffort: runtimeEnv.aiReasoningEffort,
+    disableResponseStorage: runtimeEnv.disableResponseStorage,
   });
   const alerting = new LoggerAlertingAdapter();
   const calcService = new CalcAgentService(runtimeEnv, cacheBus, statAiClient, alerting);
   const narrativeService = new NarrativeAgentService(runtimeEnv, cacheBus, textAiClient, alerting);
   const openingDialogueService = new OpeningDialogueService(runtimeEnv, textAiClient);
-  const consortDialogueService = new ConsortDialogueService(runtimeEnv, textAiClient);
+  const sessionMemoryService = new SessionMemoryService();
+  const relationMemoryService = new RelationMemoryService();
+  const consortDialogueService = new ConsortDialogueService(
+    runtimeEnv,
+    textAiClient,
+    sessionMemoryService,
+    relationMemoryService,
+  );
   const relationshipJudgeService = new RelationshipJudgeService(runtimeEnv, relationshipJudgeAiClient);
   const taiyiAmbientService = new TaiyiAmbientService(runtimeEnv, textAiClient);
   const miaoyinAmbientService = new MiaoYinAmbientService(runtimeEnv, textAiClient);

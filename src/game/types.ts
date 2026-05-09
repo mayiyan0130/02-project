@@ -28,6 +28,7 @@ export type MapAreaId =
   | '重华宫'
   | '椒房殿'
   | '储秀宫'
+  | '掖庭院'
   | '长春宫'
   | '启祥宫'
   | '钟粹宫'
@@ -53,7 +54,7 @@ export interface GameNumericsState {
   name: string;
   age: number;
   family: string;
-  residenceName: string;
+  residenceName: MapAreaId;
   openingTendency?: string;
   pointsTotal: number;
   pointsLeft: number;
@@ -78,6 +79,19 @@ export interface PalaceTimeState {
   slotProgress: number;
 }
 
+export type SettlementReportKind = 'xun' | 'month';
+
+export interface SettlementReport {
+  id: string;
+  kind: SettlementReportKind;
+  year: number;
+  month: number;
+  xun: number;
+  title: string;
+  summary: string;
+  lines: string[];
+}
+
 export interface HiddenStatsState {
   silver: number;
   prestige: number;
@@ -96,7 +110,7 @@ export interface RouteSelectionProfile {
   intro: string;
   defaultName: string;
   familyDisplay: string;
-  residenceDisplay: string;
+  residenceDisplay: MapAreaId;
   aptitudeDisplay?: string;
   biography: string;
   clearanceRequirement: string;
@@ -206,7 +220,7 @@ export interface InventoryItem {
   recyclePriceOverride?: number;
 }
 
-export type ConsortPalaceActionId = 'visit' | 'gift' | 'greet' | 'quarrel' | 'punish' | 'win-over' | 'smear';
+export type ConsortPalaceActionId = 'visit' | 'gift' | 'greet' | 'quarrel' | 'punish' | 'win-over' | 'smear' | 'farewell';
 
 export interface ConsortDialogueOption {
   id: string;
@@ -214,6 +228,89 @@ export interface ConsortDialogueOption {
   effectHint: string;
   fallbackToneTag: RelationshipToneTag;
   nextTopic?: string;
+}
+
+export interface DialogueMemoryCandidate {
+  scope: 'session' | 'relation';
+  type: 'interaction' | 'gift' | 'conflict' | 'promise' | 'preference' | 'boundary';
+  summary: string;
+  importance: 'low' | 'medium' | 'high';
+  confidence: number;
+  source: 'ai' | 'system';
+  status: 'candidate';
+}
+
+export interface DialogueRelationCandidate {
+  candidateType: 'rapport' | 'gift' | 'conflict' | 'promise' | 'preference' | 'boundary';
+  scope: 'relation';
+  summary: string;
+  importance: 'low' | 'medium' | 'high';
+  confidence: number;
+  source: 'ai' | 'system';
+  status: 'candidate';
+  sourceEventId: string;
+  promotable: boolean;
+  dedupeKey: string;
+  reason: string;
+}
+
+export type LongTermRelationType = 'familiarity' | 'trust' | 'affinity' | 'dependency';
+
+export interface DialogueRelationMemoryEntrySummary {
+  entryId: string;
+  relationType: LongTermRelationType;
+  candidateType: DialogueRelationCandidate['candidateType'];
+  summary: string;
+  sceneId: string;
+  sourceEventId: string;
+  dedupeKey: string;
+  promotedAt: string;
+  acceptedRule: string;
+}
+
+export interface DialogueRelationPromotionRejectedCandidate {
+  dedupeKey: string;
+  candidateType: DialogueRelationCandidate['candidateType'];
+  reason: string;
+}
+
+export interface DialogueRelationMemoryInfo {
+  enabled: boolean;
+  totalEntryCount: number;
+  sceneEntryCount: number;
+  snapshotHighlights: Array<{
+    relationType: LongTermRelationType;
+    summary: string;
+  }>;
+  reviewedCount: number;
+  promotedCount: number;
+  rejectedCount: number;
+  duplicateCount: number;
+  promotedEntries: DialogueRelationMemoryEntrySummary[];
+  rejectedCandidates: DialogueRelationPromotionRejectedCandidate[];
+}
+
+export interface DialogueAffectHint {
+  key: 'trust' | 'affection' | 'tension' | 'suspicion' | 'mood';
+  direction: 'up' | 'down' | 'flat';
+  reason: string;
+  confidence: number;
+}
+
+export interface DialogueSessionMemoryInfo {
+  enabled: boolean;
+  readTurnCount: number;
+  readMemoryCandidateCount: number;
+  writtenMemoryCandidateCount: number;
+  readRelationCandidateCount: number;
+  writtenRelationCandidateCount: number;
+  totalTurnCount: number;
+  totalExchangeCount: number;
+  recentTurnCount: number;
+  recentMemoryCandidateCount: number;
+  recentRelationCandidateCount: number;
+  recentSummary?: string;
+  retrievedRefs: string[];
 }
 
 export interface ConsortDialogueTurn {
@@ -225,6 +322,12 @@ export interface ConsortDialogueTurn {
   nextActionLabel: string;
   sceneHint?: string;
   options: ConsortDialogueOption[];
+  memoryCandidates?: DialogueMemoryCandidate[];
+  relationCandidates?: DialogueRelationCandidate[];
+  affectHints?: DialogueAffectHint[];
+  sessionMemory?: DialogueSessionMemoryInfo;
+  relationMemory?: DialogueRelationMemoryInfo;
+  usedFallback?: boolean;
 }
 
 export interface ConsortInteractionProgress {

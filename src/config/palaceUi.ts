@@ -1,4 +1,4 @@
-import type { MapAreaId, RouteId } from '../game/types';
+import type { MapAreaId } from '../game/types';
 
 export interface GuideTendencyOption {
   id: 'steady' | 'radiant' | 'balanced';
@@ -42,13 +42,6 @@ export interface ChamberActionButtonConfig {
   stressDelta?: number;
 }
 
-export const ROUTE_RESIDENCE_BY_ID: Record<RouteId, string> = {
-  lanyinxuguo: '椒房殿',
-  fushengrumeng: '储秀宫',
-  yingluoyeting: '掖庭院',
-  chenyuansucuo: '玉清宫',
-};
-
 export const GUIDE_TENDENCY_OPTIONS: readonly GuideTendencyOption[] = [
   {
     id: 'steady',
@@ -84,7 +77,7 @@ export const MAP_GUIDE_LINES = [
 export const MAP_SIDEBAR_BUTTONS: readonly PalaceSidebarButtonConfig[] = [
   { id: 'consorts', label: '嫔妃', top: '18%' },
   { id: 'stats', label: '查看', top: '32%' },
-  { id: 'return', label: '返回', top: '46%' },
+  { id: 'return', label: '回宫', top: '46%' },
   { id: 'chronicle', label: '纪事', top: '60%' },
   { id: 'bond', label: '情缘', top: '74%' },
 ] as const;
@@ -114,6 +107,21 @@ export const MAP_HOTSPOTS: readonly MapHotspotConfig[] = [
   { id: '宫门', label: '宫门', top: '78%', left: '50.2%', width: '5.2%', height: '17%', description: '宫门关系外来人物与特殊事件，也是部分路线支线的入口。', vertical: true },
   { id: '重华宫', label: '重华宫', top: '71%', left: '90%', width: '5.8%', height: '19%', description: '重华宫与皇嗣教育相关，后续孩子三岁后会在这里成长。', vertical: true },
 ] as const;
+
+const buildResidenceHotspotDescription = (residenceName: MapAreaId): string =>
+  `${residenceName}是娘娘当前居所。点这里会直接回宫，不再额外消耗时辰。`;
+
+export const buildMapHotspots = (residenceName: MapAreaId): readonly MapHotspotConfig[] =>
+  MAP_HOTSPOTS.map((hotspot) =>
+    hotspot.id === '椒房殿'
+      ? {
+          ...hotspot,
+          id: residenceName,
+          label: residenceName,
+          description: buildResidenceHotspotDescription(residenceName),
+        }
+      : hotspot,
+  );
 
 export const CHAMBER_ACTION_BUTTONS: readonly ChamberActionButtonConfig[] = [
   { id: 'study', label: '诵读经典', summary: '诗词 +2', timeCost: 1, staminaCost: 1, statDeltas: { poetry: 0.2 } },

@@ -87,6 +87,13 @@ const buildFallbackText = (
     };
   }
 
+  if (actionId === 'farewell') {
+    return {
+      text: `${speakerLead} ${consort.name}闻言便把手中衣袖理平，向你低身一礼：“娘娘既要先行告退，妾不敢多留。今日这一席话，妾会记在心上。”`,
+      sceneHint: '道别已经说出口，这一轮妃嫔对话可以收束离开。',
+    };
+  }
+
   return {
     text: `${speakerLead} ${consort.name}在殿中迎了你一礼，目光却没有立刻垂下：“娘娘今日亲来，想必不是只为看一眼宫灯与茶案。妾听着，娘娘尽可以开口。”`,
     sceneHint: '先看她肯不肯把话摊开，再决定是示好、试探还是压她一头。',
@@ -109,11 +116,53 @@ const buildFallbackOptions = (actionId: string): ConsortDialogueResponsePayload[
   ];
 };
 
+const asksForPlayerResponse = (text: string): boolean => {
+  const normalized = text.replace(/\s+/gu, '');
+  if (/[?？]$/u.test(normalized) || /[?？]/u.test(normalized.slice(-16))) {
+    return true;
+  }
+
+  return [
+    /(娘娘|小主|公主|陛下|你|您).{0,14}(可愿|愿不愿|要不要|想不想|可要|是否|打算|觉得|以为|如何|怎样|何不|怎么想|怎么看|怎么说|可否|能否|作何打算)/u,
+    /(回|答|说|给).{0,6}(我|朕|本宫|哀家|妾)?(?:一)?(句|声|个)(准话|明话|明白|说法|答复)/u,
+    /(你|您|娘娘|小主).{0,8}(呢|如何回|如何答|怎么选|怎么定)/u,
+  ].some((pattern) => pattern.test(normalized));
+};
+
 const buildFallbackTurn = (
   payload: ConsortDialogueRequestPayload,
   consort: ConcubineProfile,
 ): ConsortDialogueTurn => {
   const fallback = buildFallbackText(payload, consort);
+  if (payload.topic === 'follow-up') {
+    const optionLabel = payload.selectedOptionLabel ?? '这句话';
+    return {
+      mode: 'line',
+      phase: 'finish',
+      speakerIdentity: buildSpeakerIdentity(consort),
+      speakerName: consort.name,
+      text: `${buildVoiceTag(consort)} ${consort.name}把你这句“${optionLabel}”听了进去，指尖轻轻压平袖口，才低声道：“娘娘既把话说到这里，妾自然会记着。今日这一轮，便先收在这里。”`,
+      nextActionLabel: '收起',
+      sceneHint: '这一轮回应已经收束，可以离开她的寝殿了。',
+      options: [],
+      usedFallback: true,
+    };
+  }
+
+  if (payload.actionId === 'farewell') {
+    return {
+      mode: 'line',
+      phase: 'finish',
+      speakerIdentity: buildSpeakerIdentity(consort),
+      speakerName: consort.name,
+      text: fallback.text,
+      nextActionLabel: '收起',
+      sceneHint: fallback.sceneHint,
+      options: [],
+      usedFallback: true,
+    };
+  }
+
   return {
     mode: 'branch',
     phase: 'continue',
@@ -123,8 +172,14 @@ const buildFallbackTurn = (
     nextActionLabel: '收起',
     sceneHint: fallback.sceneHint,
     options: buildFallbackOptions(payload.actionId),
+    usedFallback: true,
   };
 };
+
+export const buildConsortDialogueFallbackTurn = (
+  payload: ConsortDialogueRequestPayload,
+  consort: ConcubineProfile,
+): ConsortDialogueTurn => buildFallbackTurn(payload, consort);
 
 const isToneTag = (value: unknown): value is RelationshipToneTag => {
   return value === 'friendly' || value === 'flirt' || value === 'cold' || value === 'reject' || value === 'neutral';
@@ -138,21 +193,70 @@ const normalizeConsortDialogueResponse = (
   const fallback = buildFallbackTurn(payload, consort);
   const text = String(response.text ?? '').trim();
   const mode = response.mode === 'line' ? 'line' : 'branch';
+  const memoryCandidates = Array.isArray(response.memoryCandidates) ? response.memoryCandidates.slice(0, 5) : [];
+  const relationCandidates = Array.isArray(response.relationCandidates) ? response.relationCandidates.slice(0, 6) : [];
+  const affectHints = Array.isArray(response.affectHints) ? response.affectHints.slice(0, 3) : [];
+  const sessionMemory = response.sessionMemory;
+  const relationMemory = response.relationMemory;
 
   if (!text) {
     return fallback;
   }
 
-  if (mode === 'line') {
+  if (response.phase === 'finish') {
     return {
       mode: 'line',
-      phase: response.phase === 'finish' ? 'finish' : 'continue',
+      phase: 'finish',
+      speakerIdentity: String(response.speakerIdentity ?? '').trim() || fallback.speakerIdentity,
+      speakerName: String(response.speakerName ?? '').trim() || consort.name,
+      text,
+      nextActionLabel: '收起',
+      sceneHint: String(response.sceneHint ?? '').trim() || fallback.sceneHint || '这一轮话题已经收束。',
+      options: [],
+      memoryCandidates,
+      relationCandidates,
+      affectHints,
+      sessionMemory,
+      relationMemory,
+      usedFallback: false,
+    };
+  }
+
+  if (mode === 'line') {
+    if (asksForPlayerResponse(text)) {
+      return {
+        mode: 'branch',
+        phase: 'continue',
+        speakerIdentity: String(response.speakerIdentity ?? '').trim() || fallback.speakerIdentity,
+        speakerName: String(response.speakerName ?? '').trim() || consort.name,
+        text,
+        nextActionLabel: '收起',
+        sceneHint: String(response.sceneHint ?? '').trim() || '她把话递到你面前，等你给出回应。',
+        options: buildFallbackOptions(payload.actionId),
+        memoryCandidates,
+        relationCandidates,
+        affectHints,
+        sessionMemory,
+        relationMemory,
+        usedFallback: false,
+      };
+    }
+
+    return {
+      mode: 'line',
+      phase: 'continue',
       speakerIdentity: String(response.speakerIdentity ?? '').trim() || fallback.speakerIdentity,
       speakerName: String(response.speakerName ?? '').trim() || consort.name,
       text,
       nextActionLabel: String(response.nextActionLabel ?? '').trim() || '下一句',
       sceneHint: String(response.sceneHint ?? '').trim() || fallback.sceneHint,
       options: [],
+      memoryCandidates,
+      relationCandidates,
+      affectHints,
+      sessionMemory,
+      relationMemory,
+      usedFallback: false,
     };
   }
 
@@ -173,13 +277,19 @@ const normalizeConsortDialogueResponse = (
 
   return {
     mode: 'branch',
-    phase: response.phase === 'finish' ? 'finish' : 'continue',
+    phase: 'continue',
     speakerIdentity: String(response.speakerIdentity ?? '').trim() || fallback.speakerIdentity,
     speakerName: String(response.speakerName ?? '').trim() || consort.name,
     text,
     nextActionLabel: String(response.nextActionLabel ?? '').trim() || fallback.nextActionLabel,
     sceneHint: String(response.sceneHint ?? '').trim() || fallback.sceneHint,
     options,
+    memoryCandidates,
+    relationCandidates,
+    affectHints,
+    sessionMemory,
+    relationMemory,
+    usedFallback: false,
   };
 };
 
@@ -193,4 +303,12 @@ export const requestConsortDialogueWithFallback = async (
   } catch {
     return buildFallbackTurn(payload, consort);
   }
+};
+
+export const requestConsortDialogueStrict = async (
+  payload: ConsortDialogueRequestPayload,
+  consort: ConcubineProfile,
+): Promise<ConsortDialogueTurn> => {
+  const response = await requestConsortDialogue(payload, { timeoutMs: null });
+  return normalizeConsortDialogueResponse(response, payload, consort);
 };

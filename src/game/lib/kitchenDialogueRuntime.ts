@@ -5,6 +5,8 @@ import {
 } from '../../ai/consortDialogueAgent';
 import type { ConsortDialogueTurn, RelationshipToneTag } from '../types';
 
+const KITCHEN_DIALOGUE_TIMEOUT_MS = 900;
+
 export interface KitchenDialogueActor {
   id: string;
   name: string;
@@ -88,6 +90,24 @@ const buildFallbackTurn = (
   actor: KitchenDialogueActor,
 ): ConsortDialogueTurn => {
   const fallback = buildFallbackText(payload, actor);
+  if (payload.topic === 'follow-up') {
+    const optionLabel = payload.selectedOptionLabel ?? '这句话';
+    return {
+      mode: 'line',
+      phase: 'finish',
+      speakerIdentity: actor.identity,
+      speakerName: actor.name,
+      text:
+        actor.actorKind === 'buziyou'
+          ? `布自游听完你这句“${optionLabel}”，先把灶边木匙搁稳，才低声笑道：“娘娘既把话递到这里，我自然听明白了。御膳房里不宜久留，这一轮先收着，往后再说。”`
+          : `${actor.identity} ${actor.name}把你这句“${optionLabel}”听了进去，略略压住袖口，才轻声道：“娘娘既肯把话说到这里，我也记下了。御膳房人多耳杂，这一轮便先收住。”`,
+      nextActionLabel: '收起',
+      sceneHint: '这一轮回应已经收束，可以回到御膳房主界面了。',
+      options: [],
+      usedFallback: true,
+    };
+  }
+
   return {
     mode: 'branch',
     phase: 'continue',
@@ -164,7 +184,7 @@ export const requestKitchenDialogueWithFallback = async (
   actor: KitchenDialogueActor,
 ): Promise<ConsortDialogueTurn> => {
   try {
-    const response = await requestConsortDialogue(payload);
+    const response = await requestConsortDialogue(payload, { timeoutMs: KITCHEN_DIALOGUE_TIMEOUT_MS });
     return normalizeKitchenDialogueResponse(response, payload, actor);
   } catch {
     return buildFallbackTurn(payload, actor);

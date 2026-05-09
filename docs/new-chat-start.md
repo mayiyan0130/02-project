@@ -7,6 +7,7 @@
 先读这个 skill：
 
 - `C:\02-project\.codex\skills\palace-game-frontend\SKILL.md`
+- `C:\02-project\docs\codex-dialogue-handoff.md`
 
 如有需要，再读：
 
@@ -91,3 +92,34 @@ npx vitest run src/__tests__/app-flow.test.tsx
 ```text
 先读取 C:\02-project\docs\new-chat-start.md、C:\02-project\.codex\skills\palace-game-frontend\SKILL.md、以及 game word 中的系统硬规则总稿与相关硬规则文档，然后继续当前 02-project 的前端与双 AI 接口开发。
 ```
+
+## 7. 本次会话新增交接重点（2026-05-09）
+
+后续 Codex 接手前，额外注意：
+
+1. 统一 handoff 文档只保留：
+   - `docs/codex-dialogue-handoff.md`
+
+2. 旧的并行 handoff 文档已删除：
+   - `docs/codex-work-handoff-current.md`
+
+3. `docs/codex-dialogue-handoff.md` 已新增多段同日总结，接手前至少先读：
+   - `13. 本次会话操作总结（2026-05-09）`
+   - `14. 本次会话补充操作总结（2026-05-09，代码清理与交接文档合并）`
+   - `15. 本次会话补充操作总结（2026-05-09，当前最新）`
+
+4. 当前最新补充会话主要做了：
+   - 玩家住处、地图寝殿热点、回宫语义进一步收口
+   - 旬报 / 月报 / 月俸骨架接入并留档
+   - 位分推进与迁宫真正接入月结算
+   - 妃嫔 AI 对话 timeout / fallback 稳定性修复
+   - handoff 文档继续补齐最新交接说明
+
+5. 接手后的第一优先级仍然不是扩框架，而是先复跑当前基线：
+
+```bash
+npx vitest run src/__tests__/app-flow.test.tsx
+npm run build:web
+```
+
+6. 如果这两个基线仍通过，再继续下一轮；如果不通过，先收口当前地图 / 寝殿 / 妃嫔对话 / fallback 语义与构建红灯，不要直接扩大改造范围。

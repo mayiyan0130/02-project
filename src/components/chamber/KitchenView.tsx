@@ -9,6 +9,7 @@ import {
   requestKitchenDialogueWithFallback,
   type KitchenDialogueActor,
 } from '../../game/lib/kitchenDialogueRuntime';
+import { clampToRange, trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
 import { requestRelationshipJudgementWithFallback } from '../../game/lib/relationshipJudgeRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type {
@@ -33,8 +34,6 @@ interface KitchenSceneActor extends KitchenDialogueActor {
 }
 
 const BU_ZIYOU_PORTRAIT_SRC = new URL('../../../picture/man/布自游.png', import.meta.url).href;
-const trimHistory = (history: HistoryEntry[]): HistoryEntry[] => history.slice(-6);
-const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 const hashSeed = (seed: string): number =>
   seed.split('').reduce((accumulator, char, index) => accumulator + char.charCodeAt(0) * (index + 19), 0);
 
@@ -111,7 +110,7 @@ export function KitchenView({ concubines }: KitchenViewProps) {
       historyOverride?: HistoryEntry[];
     },
   ) => {
-    const activeHistory = trimHistory(overrides?.historyOverride ?? history);
+    const activeHistory = trimDialogueHistory(overrides?.historyOverride ?? history);
 
     return {
       routeId: state.routeId,
@@ -175,7 +174,7 @@ export function KitchenView({ concubines }: KitchenViewProps) {
     setDialogueTurn(nextTurn);
     setSceneHint(nextTurn.sceneHint ?? '');
     setHistory((currentHistory) =>
-      trimHistory([...(overrides?.historyOverride ?? currentHistory), { speaker: speakerLabel, text: nextTurn.text }]),
+      trimDialogueHistory([...(overrides?.historyOverride ?? currentHistory), { speaker: speakerLabel, text: nextTurn.text }]),
     );
   };
 
@@ -286,7 +285,7 @@ export function KitchenView({ concubines }: KitchenViewProps) {
       return;
     }
 
-    const nextHistory = trimHistory([
+    const nextHistory = trimDialogueHistory([
       ...history,
       {
         speaker: `${playerRankLabel} · ${state.name}`,
@@ -315,8 +314,8 @@ export function KitchenView({ concubines }: KitchenViewProps) {
         const summary = applyConsortRelationshipJudgement(activeActor.consortId, 'greet', judgement);
         const nextActor = {
           ...activeActor,
-          currentGoodwill: clamp(activeActor.currentGoodwill + summary.appliedFavorDelta, -100, 100),
-          currentAffection: clamp(activeActor.currentAffection + summary.appliedAffectionDelta, 0, 100),
+          currentGoodwill: clampToRange(activeActor.currentGoodwill + summary.appliedFavorDelta, -100, 100),
+          currentAffection: clampToRange(activeActor.currentAffection + summary.appliedAffectionDelta, 0, 100),
         };
         setActiveActor(nextActor);
 
@@ -330,8 +329,8 @@ export function KitchenView({ concubines }: KitchenViewProps) {
           historyOverride: nextHistory,
         });
       } else {
-        const nextFavor = clamp(kitchenProgress.buZiyouFavor + judgement.favorDelta, -100, 100);
-        const nextAffinity = clamp(kitchenProgress.buZiyouAffinity + judgement.affectionDelta, 0, 100);
+        const nextFavor = clampToRange(kitchenProgress.buZiyouFavor + judgement.favorDelta, -100, 100);
+        const nextAffinity = clampToRange(kitchenProgress.buZiyouAffinity + judgement.affectionDelta, 0, 100);
         patchKitchenProgress({
           buZiyouFavor: nextFavor,
           buZiyouAffinity: nextAffinity,

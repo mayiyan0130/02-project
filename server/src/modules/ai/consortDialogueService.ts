@@ -6,12 +6,31 @@ import type {
   ConsortDialogueResponse,
   RelationshipToneTag,
 } from '../../types/contracts';
+import { SessionMemoryService } from '../memory/sessionMemoryService';
+import { RelationMemoryService, buildRelationMemoryKey } from '../memory/relationMemoryService';
+import type { SessionMemoryTurn } from '../memory/sessionMemoryTypes';
 import { buildPalaceDialoguePrompt, buildSceneIdentityRules } from './dialogueSystemPrompt';
+import {
+  buildConsortDialogueAiPayload,
+  buildConsortDialogueContext,
+  buildConsortDialoguePromptRules,
+  buildSessionMemoryDebugInfo,
+  buildSessionMemoryKey,
+  mergeDialogueMetadata,
+} from './dialogueOrchestrator';
+import { reviewRelationCandidatesForPromotion } from './relationPromotion';
 
 type FallbackDialogueDraft = Pick<
   ConsortDialogueResponse,
   'mode' | 'phase' | 'text' | 'nextActionLabel' | 'sceneHint' | 'options'
 >;
+type ConsortDialogueAiDraft = Omit<
+  ConsortDialogueResponse,
+  'memoryCandidates' | 'relationCandidates' | 'affectHints' | 'relationMemory'
+> & {
+  memoryCandidates?: unknown[];
+  affectHints?: unknown[];
+};
 
 const isToneTag = (value: unknown): value is RelationshipToneTag =>
   value === 'friendly' || value === 'flirt' || value === 'cold' || value === 'reject' || value === 'neutral';
@@ -31,6 +50,8 @@ const isLianQiaoContext = (payload: ConsortDialogueRequest): boolean => payload.
 const isEmperorContext = (payload: ConsortDialogueRequest): boolean =>
   payload.consortContext.name === '容安' || payload.consortContext.rank === '皇帝';
 
+const MAX_DIALOGUE_EXCHANGES_PER_SESSION = 20;
+
 const selectByXun = <T,>(payload: ConsortDialogueRequest, variants: T[]): T =>
   variants[(payload.timeContext.month + payload.timeContext.xun + payload.history.length) % variants.length];
 
@@ -48,6 +69,59 @@ const buildDefaultFallbackOptions = (actionId: string): ConsortDialogueResponse[
     { id: 'tease', label: '借话轻试深浅', effectHint: '若她心动，最容易露出破绽。', fallbackToneTag: 'flirt' },
     { id: 'hold', label: '只把礼数做满', effectHint: '不急着把话说透，先稳住场面。', fallbackToneTag: 'neutral' },
   ];
+};
+
+const buildQuestionFallbackOptions = (payload: ConsortDialogueRequest): ConsortDialogueResponse['options'] => {
+  if (payload.consortContext.name === '杜娘' || payload.consortContext.id.startsWith('tool_')) {
+    return [
+      { id: 'ask-shop', label: '顺着货色问一句', effectHint: '只聊买卖见闻，不触发交易。', fallbackToneTag: 'neutral' },
+      { id: 'ask-news', label: '问问宫门近况', effectHint: '听她说公开风声，不探秘密。', fallbackToneTag: 'friendly' },
+      { id: 'hold-boundary', label: '只笑着带过', effectHint: '守住分寸，不把话说深。', fallbackToneTag: 'neutral' },
+    ];
+  }
+
+  if (payload.consortContext.name === '太后' || payload.consortContext.rank === '太后') {
+    return [
+      { id: 'humble-answer', label: '低声应下教诲', effectHint: '守礼回应，不抢话头。', fallbackToneTag: 'friendly' },
+      { id: 'ask-guidance', label: '顺势请太后示下', effectHint: '把主动权交还给太后。', fallbackToneTag: 'neutral' },
+      { id: 'careful-hold', label: '只按规矩回话', effectHint: '先保住分寸，不露锋芒。', fallbackToneTag: 'cold' },
+    ];
+  }
+
+  return [
+    { id: 'answer-softly', label: '顺着她的话回应', effectHint: '先把语气放稳，接住这一问。', fallbackToneTag: 'friendly' },
+    { id: 'probe-back', label: '借机反问试探', effectHint: '看她愿不愿意多露半句。', fallbackToneTag: 'neutral' },
+    { id: 'hold-distance', label: '只按礼数带过', effectHint: '保留距离，不急着交底。', fallbackToneTag: 'cold' },
+  ];
+};
+
+const asksForPlayerResponse = (text: string): boolean => {
+  const normalized = text.replace(/\s+/gu, '');
+  if (/[?？]$/u.test(normalized) || /[?？]/u.test(normalized.slice(-16))) {
+    return true;
+  }
+
+  return [
+    /(娘娘|小主|公主|陛下|你|您).{0,14}(可愿|愿不愿|要不要|想不想|可要|是否|打算|觉得|以为|如何|怎样|何不|怎么想|怎么看|怎么说|可否|能否|作何打算)/u,
+    /(回|答|说|给).{0,6}(我|朕|本宫|哀家|妾)?(?:一)?(句|声|个)(准话|明话|明白|说法|答复)/u,
+    /(你|您|娘娘|小主).{0,8}(呢|如何回|如何答|怎么选|怎么定)/u,
+  ].some((pattern) => pattern.test(normalized));
+};
+
+const buildSessionClosingDialogue = (payload: ConsortDialogueRequest): ConsortDialogueResponse => {
+  const identity = payload.consortContext.rank;
+  const name = payload.consortContext.name;
+
+  return {
+    mode: 'line',
+    phase: 'finish',
+    speakerIdentity: identity,
+    speakerName: name,
+    text: `${name}将这一场话慢慢收住，神色仍留着分寸：“今日说到这里，便已经够了。再往深处去，反倒容易叫旁人听出不该听的意思。娘娘先回吧，余下的话，待来日局面更稳时再说。”`,
+    nextActionLabel: '收起',
+    sceneHint: '这一轮话题已自然收束，继续交谈需重新开启场景。',
+    options: [],
+  };
 };
 
 const buildDowagerFallbackOptions = (payload: ConsortDialogueRequest): ConsortDialogueResponse['options'] => {
@@ -464,10 +538,36 @@ const normalizeDialogue = (
     return fallback;
   }
 
-  if (mode === 'line') {
+  if (response.phase === 'finish') {
     return {
       mode: 'line',
-      phase: response.phase === 'finish' ? 'finish' : 'continue',
+      phase: 'finish',
+      speakerIdentity: String(response.speakerIdentity ?? '').trim() || fallback.speakerIdentity,
+      speakerName: String(response.speakerName ?? '').trim() || fallback.speakerName,
+      text,
+      nextActionLabel: '收起',
+      sceneHint: String(response.sceneHint ?? '').trim() || fallback.sceneHint || '这一轮话题已经收束。',
+      options: [],
+    };
+  }
+
+  if (mode === 'line') {
+    if (asksForPlayerResponse(text)) {
+      return {
+        mode: 'branch',
+        phase: 'continue',
+        speakerIdentity: String(response.speakerIdentity ?? '').trim() || fallback.speakerIdentity,
+        speakerName: String(response.speakerName ?? '').trim() || fallback.speakerName,
+        text,
+        nextActionLabel: '收起',
+        sceneHint: String(response.sceneHint ?? '').trim() || '她把话递到你面前，等你给出回应。',
+        options: buildQuestionFallbackOptions(payload),
+      };
+    }
+
+    return {
+      mode: 'line',
+      phase: 'continue',
       speakerIdentity: String(response.speakerIdentity ?? '').trim() || fallback.speakerIdentity,
       speakerName: String(response.speakerName ?? '').trim() || fallback.speakerName,
       text,
@@ -496,7 +596,7 @@ const normalizeDialogue = (
 
   return {
     mode: 'branch',
-    phase: response.phase === 'finish' ? 'finish' : 'continue',
+    phase: 'continue',
     speakerIdentity: String(response.speakerIdentity ?? '').trim() || fallback.speakerIdentity,
     speakerName: String(response.speakerName ?? '').trim() || fallback.speakerName,
     text,
@@ -506,11 +606,61 @@ const normalizeDialogue = (
   };
 };
 
+const buildSessionMemoryTurns = (
+  payload: ConsortDialogueRequest,
+  response: ConsortDialogueResponse,
+): Array<Omit<SessionMemoryTurn, 'createdAt'>> => {
+  const turns: Array<Omit<SessionMemoryTurn, 'createdAt'>> = [];
+
+  if (payload.selectedOptionLabel) {
+    turns.push({
+      speaker: `${payload.playerRank} · ${payload.playerName}`,
+      text: payload.selectedOptionLabel,
+      source: 'player',
+      requestId: payload.requestId,
+    });
+  } else if (payload.actionResult) {
+    turns.push({
+      speaker: '系统动作',
+      text: `${payload.actionLabel}：${payload.actionResult}`,
+      source: 'system',
+      requestId: payload.requestId,
+    });
+  }
+
+  turns.push({
+    speaker: `${response.speakerIdentity} · ${response.speakerName}`,
+    text: response.text,
+    source: 'npc',
+    requestId: payload.requestId,
+  });
+
+  return turns;
+};
+
 export class ConsortDialogueService {
-  constructor(private readonly env: ServerEnv, private readonly textAiClient: EponeClient) {}
+  constructor(
+    private readonly env: ServerEnv,
+    private readonly textAiClient: EponeClient,
+    private readonly sessionMemoryService = new SessionMemoryService(),
+    private readonly relationMemoryService = new RelationMemoryService(),
+  ) {}
 
   async generate(payload: ConsortDialogueRequest): Promise<ConsortDialogueResponse> {
-    try {
+    const sessionMemoryKey = buildSessionMemoryKey(payload);
+    const relationMemoryKey = buildRelationMemoryKey(payload);
+    const existingSessionMemory = this.sessionMemoryService.read(sessionMemoryKey);
+    const existingRelationMemory = this.relationMemoryService.readSnapshot({
+      ...relationMemoryKey,
+      sceneId: payload.sceneId,
+    });
+    const dialogueContext = buildConsortDialogueContext(payload, existingSessionMemory, existingRelationMemory);
+    let response: ConsortDialogueResponse;
+
+    if ((existingSessionMemory?.totalExchangeCount ?? 0) >= MAX_DIALOGUE_EXCHANGES_PER_SESSION - 1) {
+      response = mergeDialogueMetadata(payload, buildSessionClosingDialogue(payload), [], []);
+    } else {
+      try {
       const draft = consortDialogueResponseSchema.parse(
         await this.textAiClient.completeJson<ConsortDialogueResponse>(
           this.env.narrativeModel,
@@ -520,7 +670,7 @@ export class ConsortDialogueService {
             `当前 NPC 为${payload.consortContext.rank} ${payload.consortContext.name}，你必须严格按这个身份、位分、场景来写，不得套错成别的角色或平均模板腔。`,
             '角色台词必须紧扣她或他的身份、人设、关系阶段、当前动作与最近对话史，不能写成模板化的平均口吻。',
             '输出必须是严格 JSON，不得输出 JSON 之外的任何说明。',
-            '字段固定为 mode、phase、speakerIdentity、speakerName、text、nextActionLabel、sceneHint、options。',
+            '字段固定为 mode、phase、speakerIdentity、speakerName、text、nextActionLabel、sceneHint、options、memoryCandidates、affectHints。',
             'speakerIdentity 必须是当前 NPC 在此场景下应使用的身份称谓，speakerName 必须是当前 NPC 的姓名。',
             'text 长度控制在 90 到 180 字，必须带有人物动作、停顿、神情或潜台词，像活人在说话，不要客服腔、总结腔，也不要空泛抒情。',
             '口吻要像宫廷中人自然说话，避免“哟”“啦”“这不就”“你可真会”等明显现代、油滑或网感过强的口头禅，除非人物设定本就轻佻。',
@@ -528,6 +678,9 @@ export class ConsortDialogueService {
             '若 currentGoodwill >= 60 或 allies 里含玩家，才可以让 NPC 明显软下来、露出亲近或信任。',
             '每句对白都必须回应当前动作、actionResult 或最近一轮对话，不能忽然转去夸月色、天气、摆设等无关泛话。',
             '若眼下仍在铺垫、寒暄、试探，还没到真正影响走向的关键抉择，就输出 mode=line，options=[]，nextActionLabel 写“下一句”。',
+            '只要 text 中直接向玩家发问、索要态度、要求玩家选择、或把话递给玩家回应，就必须输出 mode=branch，并给出 2 到 3 个可选回应；不得输出没有 options 的问句。',
+            `当前 session 已进行约 ${dialogueContext.sessionContext.totalExchangeCount} 轮；接近 ${MAX_DIALOGUE_EXCHANGES_PER_SESSION} 轮时必须主动收束话题，phase=finish，options=[]。`,
+            '当一段话自然说尽、NPC 不宜继续追问、或当前话题继续下去会显得拖沓时，可以由 NPC 主动结束对话；此时必须输出 mode=line、phase=finish、options=[]、nextActionLabel=“收起”。',
             '只有当剧情推进到真正需要玩家决断的节点时，才输出 mode=branch，并给出 2 到 3 个关键选项。',
             'branch 模式下每个选项都要有 id、label、effectHint、fallbackToneTag；line 模式不要硬塞选项。',
             'fallbackToneTag 只能是 friendly、flirt、cold、reject、neutral 之一，供系统离线时本地判定使用。',
@@ -535,17 +688,69 @@ export class ConsortDialogueService {
             '你不能改写系统已给出的 actionResult，只能在此基础上延展人物回应。',
             '如角色本身克制、守密、娇气、骄矜、清冷、体贴等特征存在，必须在语气、措辞、停顿和防备感里体现，不可混写成同一种人。',
             'sceneHint 控制在 20 到 40 字，只写玩家此刻应注意的气氛或风险，不要重复大段场景描写。',
-            'phase 默认 continue；除非输入明确要求收束，否则不要结束整段对话。',
-            'line 模式的 nextActionLabel 固定写“下一句”；branch 模式固定写“收起”。',
+            'phase 默认 continue；但话题已完成、NPC 主动送客、或 session 接近轮数上限时，必须允许自然 finish，不要为了续聊强行自说自话。',
+            'phase=finish 时 nextActionLabel 固定写“收起”；line+continue 模式 nextActionLabel 固定写“下一句”；branch+continue 模式固定写“收起”。',
+            'memoryCandidates 最多 3 条，只能是候选记忆，scope 只能是 session 或 relation，status 固定 candidate，source 固定 ai。',
+            '若没有可靠候选记忆，memoryCandidates 必须输出空数组；不得输出字符串、半截对象、世界事实或硬规则结果。',
+            'affectHints 最多 3 条，只能提示 trust、affection、tension、suspicion、mood 的 up/down/flat，不得写真实数值变化。',
+            '若没有可靠情绪提示，affectHints 必须输出空数组；不得输出缺字段对象。',
+            ...buildConsortDialoguePromptRules(dialogueContext),
             ...buildSceneIdentityRules({ name: payload.consortContext.name, rank: payload.consortContext.rank }),
           ),
-          payload,
+          buildConsortDialogueAiPayload(payload, dialogueContext),
         ),
-      );
+      ) as ConsortDialogueAiDraft;
+      const dialogueDraft: ConsortDialogueResponse = {
+        ...draft,
+        memoryCandidates: undefined,
+        relationCandidates: undefined,
+        affectHints: undefined,
+        relationMemory: undefined,
+      };
 
-      return normalizeDialogue(payload, draft);
-    } catch {
-      return buildFallbackDialogue(payload);
+      response = mergeDialogueMetadata(
+        payload,
+        normalizeDialogue(payload, dialogueDraft),
+        draft.memoryCandidates,
+        draft.affectHints,
+      );
+    } catch (error) {
+      if (payload.strictAi) {
+        throw error;
+      }
+      if (process.env.AI_DEBUG === 'true') {
+        console.warn('[consort-dialogue] falling back after AI generation failed', {
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      }
+      response = mergeDialogueMetadata(payload, buildFallbackDialogue(payload), [], []);
+      }
     }
+
+    const updatedSessionMemory = this.sessionMemoryService.append({
+      ...sessionMemoryKey,
+      requestId: payload.requestId,
+      turns: buildSessionMemoryTurns(payload, response),
+      memoryCandidates: response.memoryCandidates ?? [],
+      relationCandidates: response.relationCandidates ?? [],
+    });
+    const relationMemory = reviewRelationCandidatesForPromotion({
+      payload,
+      personaGuard: dialogueContext.personaGuard,
+      sessionMemory: updatedSessionMemory,
+      relationMemoryService: this.relationMemoryService,
+    });
+
+    return {
+      ...response,
+      sessionMemory: buildSessionMemoryDebugInfo(
+        existingSessionMemory,
+        updatedSessionMemory,
+        dialogueContext,
+        response.memoryCandidates?.length ?? 0,
+        response.relationCandidates?.length ?? 0,
+      ),
+      relationMemory,
+    };
   }
 }

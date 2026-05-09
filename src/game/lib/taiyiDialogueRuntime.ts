@@ -84,29 +84,47 @@ const buildFallbackTurn = (
   actor: TaiyiDialogueActor,
 ): ConsortDialogueTurn => {
   const fallback = buildFallbackText(payload, actor);
-  if (actor.actorKind === 'jianning' && payload.topic === 'follow-up') {
-    return {
-      mode: 'line',
-      phase: 'finish',
-      speakerIdentity: actor.identity,
-      speakerName: actor.name,
-      text: '简宁听完你这句，只把脉案往掌下一压，才缓声道：“娘娘能把话说到这里，已算明白几分。药理这种事，最忌心浮。往后若还想来问，就带着今日这点耐性再来。”',
-      nextActionLabel: '收起',
-      sceneHint: '这一回话头已经收住，可以回到太医院主界面了。',
-      options: [],
-    };
-  }
+  if (payload.topic === 'follow-up') {
+    const optionLabel = payload.selectedOptionLabel ?? '这句话';
 
-  if (actor.actorKind === 'dowager' && payload.topic === 'follow-up') {
+    if (actor.actorKind === 'jianning') {
+      return {
+        mode: 'line',
+        phase: 'finish',
+        speakerIdentity: actor.identity,
+        speakerName: actor.name,
+        text: `简宁听完你这句“${optionLabel}”，只把脉案往掌下一压，才缓声道：“娘娘能把话说到这里，已算明白几分。药理这种事，最忌心浮。往后若还想来问，就带着今日这点耐性再来。”`,
+        nextActionLabel: '收起',
+        sceneHint: '这一回话头已经收住，可以回到太医院主界面了。',
+        options: [],
+        usedFallback: true,
+      };
+    }
+
+    if (actor.actorKind === 'dowager') {
+      return {
+        mode: 'line',
+        phase: 'finish',
+        speakerIdentity: actor.identity,
+        speakerName: actor.name,
+        text: '太后听罢并未再追问，只将视线从药柜上缓缓收回：“记得住轻重，比记得住药名更要紧。太医院不是由人逞聪明的地方，今日这句，到这里便够了。”',
+        nextActionLabel: '收起',
+        sceneHint: '太后已把话收住，不宜再在廊下逗留。',
+        options: [],
+        usedFallback: true,
+      };
+    }
+
     return {
       mode: 'line',
       phase: 'finish',
       speakerIdentity: actor.identity,
       speakerName: actor.name,
-      text: '太后听罢并未再追问，只将视线从药柜上缓缓收回：“记得住轻重，比记得住药名更要紧。太医院不是由人逞聪明的地方，今日这句，到这里便够了。”',
+      text: `${actor.identity} ${actor.name}把你这句“${optionLabel}”听了进去，略略拢住袖口，才轻声道：“娘娘既肯把话递到这里，我自然记下了。太医院不是久谈之地，这一轮便先收住，改日再续。”`,
       nextActionLabel: '收起',
-      sceneHint: '太后已把话收住，不宜再在廊下逗留。',
+      sceneHint: '这一轮回应已经收束，可以回到太医院主界面了。',
       options: [],
+      usedFallback: true,
     };
   }
 
@@ -119,6 +137,7 @@ const buildFallbackTurn = (
     nextActionLabel: '收起',
     sceneHint: fallback.sceneHint,
     options: buildFallbackOptions(actor),
+    usedFallback: true,
   };
 };
 
@@ -133,6 +152,11 @@ const normalizeTaiyiDialogueResponse = (
   const fallback = buildFallbackTurn(payload, actor);
   const text = String(response.text ?? '').trim();
   const mode = response.mode === 'line' ? 'line' : 'branch';
+  const memoryCandidates = Array.isArray(response.memoryCandidates) ? response.memoryCandidates.slice(0, 5) : [];
+  const relationCandidates = Array.isArray(response.relationCandidates) ? response.relationCandidates.slice(0, 6) : [];
+  const affectHints = Array.isArray(response.affectHints) ? response.affectHints.slice(0, 3) : [];
+  const sessionMemory = response.sessionMemory;
+  const relationMemory = response.relationMemory;
 
   if (!text) {
     return fallback;
@@ -148,6 +172,12 @@ const normalizeTaiyiDialogueResponse = (
       nextActionLabel: String(response.nextActionLabel ?? '').trim() || '下一句',
       sceneHint: String(response.sceneHint ?? '').trim() || fallback.sceneHint,
       options: [],
+      memoryCandidates,
+      relationCandidates,
+      affectHints,
+      sessionMemory,
+      relationMemory,
+      usedFallback: false,
     };
   }
 
@@ -178,6 +208,12 @@ const normalizeTaiyiDialogueResponse = (
     nextActionLabel: String(response.nextActionLabel ?? '').trim() || fallback.nextActionLabel,
     sceneHint: String(response.sceneHint ?? '').trim() || fallback.sceneHint,
     options,
+    memoryCandidates,
+    relationCandidates,
+    affectHints,
+    sessionMemory,
+    relationMemory,
+    usedFallback: false,
   };
 };
 

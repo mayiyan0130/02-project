@@ -58,6 +58,24 @@ export class RedisCacheBus implements CacheBusAdapter {
     this.publisher = new Redis(redisUrl);
     this.client = new Redis(redisUrl);
     this.subscriber = new Redis(redisUrl);
+    this.attachFriendlyErrorHint();
+  }
+
+  private attachFriendlyErrorHint(): void {
+    let warned = false;
+    const warnOnce = (error: Error) => {
+      if (warned) {
+        return;
+      }
+      warned = true;
+      console.warn(
+        `[cache] Redis connection failed: ${error.message}. For local dialogue testing, set REDIS_URL=memory://local if Redis is not needed.`,
+      );
+    };
+
+    this.publisher.on('error', warnOnce);
+    this.client.on('error', warnOnce);
+    this.subscriber.on('error', warnOnce);
   }
 
   async setCalcResult(traceId: string, value: CalcAgentResponse, ttlSec: number): Promise<string> {

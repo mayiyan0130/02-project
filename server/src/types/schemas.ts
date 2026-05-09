@@ -172,7 +172,99 @@ export const openingDialogueResponseSchema = z.object({
 
 const relationshipToneTagSchema = z.enum(['friendly', 'flirt', 'cold', 'reject', 'neutral']);
 
+const dialogueMemoryCandidateSchema = z.object({
+  scope: z.enum(['session', 'relation']),
+  type: z.enum(['interaction', 'gift', 'conflict', 'promise', 'preference', 'boundary']),
+  summary: z.string().min(1),
+  importance: z.enum(['low', 'medium', 'high']),
+  confidence: z.number().min(0).max(1),
+  source: z.enum(['ai', 'system']),
+  status: z.literal('candidate'),
+});
+
+const dialogueRelationCandidateSchema = z.object({
+  candidateType: z.enum(['rapport', 'gift', 'conflict', 'promise', 'preference', 'boundary']),
+  scope: z.literal('relation'),
+  summary: z.string().min(1),
+  importance: z.enum(['low', 'medium', 'high']),
+  confidence: z.number().min(0).max(1),
+  source: z.enum(['ai', 'system']),
+  status: z.literal('candidate'),
+  sourceEventId: z.string().min(1),
+  promotable: z.boolean(),
+  dedupeKey: z.string().min(1),
+  reason: z.string().min(1),
+});
+
+const dialogueAffectHintSchema = z.object({
+  key: z.enum(['trust', 'affection', 'tension', 'suspicion', 'mood']),
+  direction: z.enum(['up', 'down', 'flat']),
+  reason: z.string().min(1),
+  confidence: z.number().min(0).max(1),
+});
+
+const dialogueSessionMemoryInfoSchema = z.object({
+  enabled: z.boolean(),
+  readTurnCount: z.number().int().min(0),
+  readMemoryCandidateCount: z.number().int().min(0),
+  writtenMemoryCandidateCount: z.number().int().min(0),
+  readRelationCandidateCount: z.number().int().min(0),
+  writtenRelationCandidateCount: z.number().int().min(0),
+  totalTurnCount: z.number().int().min(0),
+  totalExchangeCount: z.number().int().min(0),
+  recentTurnCount: z.number().int().min(0),
+  recentMemoryCandidateCount: z.number().int().min(0),
+  recentRelationCandidateCount: z.number().int().min(0),
+  recentSummary: z.string().min(1).optional(),
+  retrievedRefs: z.array(z.string().min(1)),
+});
+
+const longTermRelationTypeSchema = z.enum(['familiarity', 'trust', 'affinity', 'dependency']);
+
+const dialogueRelationMemoryEntrySummarySchema = z.object({
+  entryId: z.string().min(1),
+  relationType: longTermRelationTypeSchema,
+  candidateType: z.enum(['rapport', 'gift', 'conflict', 'promise', 'preference', 'boundary']),
+  summary: z.string().min(1),
+  sceneId: z.string().min(1),
+  sourceEventId: z.string().min(1),
+  dedupeKey: z.string().min(1),
+  promotedAt: z.string().min(1),
+  acceptedRule: z.string().min(1),
+});
+
+const dialogueRelationPromotionRejectedCandidateSchema = z.object({
+  dedupeKey: z.string().min(1),
+  candidateType: z.enum(['rapport', 'gift', 'conflict', 'promise', 'preference', 'boundary']),
+  reason: z.string().min(1),
+});
+
+const dialogueRelationMemoryInfoSchema = z.object({
+  enabled: z.boolean(),
+  totalEntryCount: z.number().int().min(0),
+  sceneEntryCount: z.number().int().min(0),
+  snapshotHighlights: z
+    .array(
+      z.object({
+        relationType: longTermRelationTypeSchema,
+        summary: z.string().min(1),
+      }),
+    )
+    .max(4),
+  reviewedCount: z.number().int().min(0),
+  promotedCount: z.number().int().min(0),
+  rejectedCount: z.number().int().min(0),
+  duplicateCount: z.number().int().min(0),
+  promotedEntries: z.array(dialogueRelationMemoryEntrySummarySchema).max(6),
+  rejectedCandidates: z.array(dialogueRelationPromotionRejectedCandidateSchema).max(6),
+});
+
 export const consortDialogueRequestSchema = z.object({
+  saveId: z.string().min(1).optional(),
+  sessionId: z.string().min(1).optional(),
+  requestId: z.string().min(1).optional(),
+  sceneId: z.string().min(1).optional(),
+  strictAi: z.boolean().optional(),
   routeId: z.string().min(1),
   playerName: z.string().min(1),
   playerRank: z.string().min(1),
@@ -245,8 +337,13 @@ export const consortDialogueResponseSchema = z.object({
   nextActionLabel: z.string().min(1),
   sceneHint: z.string().min(1).optional(),
   options: z.array(consortDialogueOptionSchema).max(3),
+  memoryCandidates: z.array(z.unknown()).max(5).optional(),
+  relationCandidates: z.array(dialogueRelationCandidateSchema).max(6).optional(),
+  affectHints: z.array(z.unknown()).max(3).optional(),
+  sessionMemory: dialogueSessionMemoryInfoSchema.optional(),
+  relationMemory: dialogueRelationMemoryInfoSchema.optional(),
 }).superRefine((value, ctx) => {
-  if (value.mode === 'branch' && value.options.length === 0) {
+  if (value.phase === 'continue' && value.mode === 'branch' && value.options.length === 0) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['options'],
@@ -254,7 +351,7 @@ export const consortDialogueResponseSchema = z.object({
     });
   }
 
-  if (value.mode === 'line' && value.options.length > 0) {
+  if (value.phase === 'continue' && value.mode === 'line' && value.options.length > 0) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['options'],

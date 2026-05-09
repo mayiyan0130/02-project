@@ -133,6 +133,11 @@ const normalizeBaohuaDialogueResponse = (
   const fallback = buildFallbackTurn(payload, actor);
   const text = String(response.text ?? '').trim();
   const mode = response.mode === 'line' ? 'line' : 'branch';
+  const memoryCandidates = Array.isArray(response.memoryCandidates) ? response.memoryCandidates.slice(0, 5) : [];
+  const relationCandidates = Array.isArray(response.relationCandidates) ? response.relationCandidates.slice(0, 6) : [];
+  const affectHints = Array.isArray(response.affectHints) ? response.affectHints.slice(0, 3) : [];
+  const sessionMemory = response.sessionMemory;
+  const relationMemory = response.relationMemory;
 
   if (!text) {
     return fallback;
@@ -148,6 +153,11 @@ const normalizeBaohuaDialogueResponse = (
       nextActionLabel: String(response.nextActionLabel ?? '').trim() || '下一句',
       sceneHint: String(response.sceneHint ?? '').trim() || fallback.sceneHint,
       options: [],
+      memoryCandidates,
+      relationCandidates,
+      affectHints,
+      sessionMemory,
+      relationMemory,
     };
   }
 
@@ -178,6 +188,11 @@ const normalizeBaohuaDialogueResponse = (
     nextActionLabel: String(response.nextActionLabel ?? '').trim() || fallback.nextActionLabel,
     sceneHint: String(response.sceneHint ?? '').trim() || fallback.sceneHint,
     options,
+    memoryCandidates,
+    relationCandidates,
+    affectHints,
+    sessionMemory,
+    relationMemory,
   };
 };
 

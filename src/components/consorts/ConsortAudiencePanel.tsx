@@ -6,7 +6,9 @@ import {
   getConcubinePortraitPath,
   getConcubineRankWeightByLabel,
 } from '../../game/data/concubineRoster';
+import { clampToRange, createDialogueId, trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
 import { requestConsortDialogueWithFallback } from '../../game/lib/consortDialogueRuntime';
+import { traceDialogue } from '../../game/lib/dialogueTrace';
 import { requestRelationshipJudgementWithFallback } from '../../game/lib/relationshipJudgeRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type {
@@ -30,8 +32,15 @@ interface HistoryEntry {
   text: string;
 }
 
-const clampLocal = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
-const trimHistory = (history: HistoryEntry[]): HistoryEntry[] => history.slice(-6);
+interface NarrativeTurnOverrides {
+  actionResult?: string;
+  selectedOptionId?: string;
+  selectedOptionLabel?: string;
+  giftItemName?: string;
+  smearTargetName?: string;
+  historyOverride?: HistoryEntry[];
+  forceFinish?: boolean;
+}
 
 const appendUnique = (items: string[], value: string): string[] => (items.includes(value) ? items : [...items, value]);
 const removeValue = (items: string[], value: string): string[] => items.filter((item) => item !== value);
@@ -93,6 +102,8 @@ export function ConsortAudiencePanel({ consort, palaceLabel, hallLabel, concubin
   const [actionLabel, setActionLabel] = useState('入殿相见');
   const [sceneHint, setSceneHint] = useState('');
   const [pickerMode, setPickerMode] = useState<'gift' | 'smear' | null>(null);
+  const saveId = useMemo(() => `local:${state.routeId}:${encodeURIComponent(state.name)}`, [state.name, state.routeId]);
+  const sessionId = useMemo(() => createDialogueId(`session-${consort.id}`), [consort.id]);
 
   const displayRank = useMemo(() => getConcubineDisplayRankText(consort), [consort]);
   const portraitSrc = useMemo(() => getConcubinePortraitPath(consort.portraitId), [consort.portraitId]);
@@ -135,18 +146,15 @@ export function ConsortAudiencePanel({ consort, palaceLabel, hallLabel, concubin
     topic: 'visit' | 'action' | 'follow-up',
     nextActionId: string,
     nextActionLabel: string,
-    overrides?: {
-      actionResult?: string;
-      selectedOptionId?: string;
-      selectedOptionLabel?: string;
-      giftItemName?: string;
-      smearTargetName?: string;
-      historyOverride?: HistoryEntry[];
-    },
+    overrides?: NarrativeTurnOverrides,
   ) => {
-    const activeHistory = trimHistory(overrides?.historyOverride ?? history);
+    const activeHistory = trimDialogueHistory(overrides?.historyOverride ?? history);
 
     return {
+      saveId,
+      sessionId,
+      requestId: createDialogueId('request'),
+      sceneId: `consort-audience:${activeConsort.id}`,
       routeId: state.routeId,
       playerName: state.name,
       playerRank: playerRankLabel,
@@ -196,21 +204,41 @@ export function ConsortAudiencePanel({ consort, palaceLabel, hallLabel, concubin
     topic: 'visit' | 'action' | 'follow-up',
     nextActionId: ConsortPalaceActionId,
     nextActionLabel: string,
-    overrides?: {
-      actionResult?: string;
-      selectedOptionId?: string;
-      selectedOptionLabel?: string;
-      giftItemName?: string;
-      smearTargetName?: string;
-      historyOverride?: HistoryEntry[];
-    },
+    overrides?: NarrativeTurnOverrides,
   ) => {
     const payload = buildPayload(activeConsort, topic, nextActionId, nextActionLabel, overrides);
     const nextTurn = await requestConsortDialogueWithFallback(payload, activeConsort);
+
+    const displayedTurn: ConsortDialogueTurn = overrides?.forceFinish
+      ? {
+          ...nextTurn,
+          mode: 'line',
+          phase: 'finish',
+          nextActionLabel: '收起',
+          options: [],
+        }
+      : nextTurn;
     const speakerLabel = `${nextTurn.speakerIdentity} · ${nextTurn.speakerName}`;
-    setDialogueTurn(nextTurn);
-    setSceneHint(nextTurn.sceneHint ?? '');
-    setHistory((currentHistory) => trimHistory([...(overrides?.historyOverride ?? currentHistory), { speaker: speakerLabel, text: nextTurn.text }]));
+    traceDialogue({
+      npcId: activeConsort.id,
+      sceneId: payload.sceneId,
+      sessionId,
+      turnsRead: nextTurn.sessionMemory?.readTurnCount ?? 0,
+      candidatesRead: nextTurn.sessionMemory?.readMemoryCandidateCount ?? 0,
+      candidatesWritten: nextTurn.sessionMemory?.writtenMemoryCandidateCount ?? nextTurn.memoryCandidates?.length ?? 0,
+      relationCandidatesRead: nextTurn.sessionMemory?.readRelationCandidateCount ?? 0,
+      relationCandidatesWritten:
+        nextTurn.sessionMemory?.writtenRelationCandidateCount ?? nextTurn.relationCandidates?.length ?? 0,
+      relationPromotedCount: nextTurn.relationMemory?.promotedCount ?? 0,
+      relationRejectedCount: nextTurn.relationMemory?.rejectedCount ?? 0,
+      relationEntryCount: nextTurn.relationMemory?.totalEntryCount ?? 0,
+      usedFallback: Boolean(nextTurn.usedFallback),
+    });
+    setDialogueTurn(displayedTurn);
+    setSceneHint(displayedTurn.sceneHint ?? '');
+    setHistory((currentHistory) =>
+      trimDialogueHistory([...(overrides?.historyOverride ?? currentHistory), { speaker: speakerLabel, text: displayedTurn.text }]),
+    );
   };
 
   useEffect(() => {
@@ -256,10 +284,10 @@ export function ConsortAudiencePanel({ consort, palaceLabel, hallLabel, concubin
       ...consort,
       stats: {
         ...consort.stats,
-        relationToPlayer: clampLocal(consort.stats.relationToPlayer + item.favorDelta, -100, 100),
-        health: clampLocal(consort.stats.health + item.healthDelta, 0, 1000),
-        appearance: clampLocal(consort.stats.appearance + item.appearanceDelta, 0, 1000),
-        temperament: clampLocal(consort.stats.temperament + item.temperamentDelta, 0, 1000),
+        relationToPlayer: clampToRange(consort.stats.relationToPlayer + item.favorDelta, -100, 100),
+        health: clampToRange(consort.stats.health + item.healthDelta, 0, 1000),
+        appearance: clampToRange(consort.stats.appearance + item.appearanceDelta, 0, 1000),
+        temperament: clampToRange(consort.stats.temperament + item.temperamentDelta, 0, 1000),
       },
     };
 
@@ -343,8 +371,8 @@ export function ConsortAudiencePanel({ consort, palaceLabel, hallLabel, concubin
         rivals: appendUnique(consort.rivals, '玩家'),
         stats: {
           ...consort.stats,
-          relationToPlayer: clampLocal(consort.stats.relationToPlayer - 4, -100, 100),
-          stress: clampLocal(consort.stats.stress + 6, 0, 100),
+          relationToPlayer: clampToRange(consort.stats.relationToPlayer - 4, -100, 100),
+          stress: clampToRange(consort.stats.stress + 6, 0, 100),
         },
       };
       patchConcubineById(consort.id, () => snapshot);
@@ -388,15 +416,16 @@ export function ConsortAudiencePanel({ consort, palaceLabel, hallLabel, concubin
       return;
     }
 
-    const nextHistory = trimHistory([...history, { speaker: `${playerRankLabel} · ${state.name}`, text: option.label }]);
+    const nextHistory = trimDialogueHistory([...history, { speaker: `${playerRankLabel} · ${state.name}`, text: option.label }]);
     setBusy(true);
+    setSceneHint('已接住你的回应，正在判定这一句的语气与后续反应。');
 
     try {
       const judgement = await requestRelationshipJudgementWithFallback(
         {
           routeId: state.routeId,
           npcId: consort.id,
-          sceneType: `宫内拜访·${actionLabel}`,
+          sceneType: `妃嫔宫内·${actionLabel}`,
           optionText: option.label,
           npcProfile: `${displayRank} ${consort.name}。${consort.summary}。性格：${consort.personality}`,
           currentFavor: consort.stats.relationToPlayer,
@@ -410,8 +439,8 @@ export function ConsortAudiencePanel({ consort, palaceLabel, hallLabel, concubin
         ...consort,
         stats: {
           ...consort.stats,
-          relationToPlayer: clampLocal(consort.stats.relationToPlayer + summary.appliedFavorDelta, -100, 100),
-          affection: clampLocal(consort.stats.affection + summary.appliedAffectionDelta, 0, 100),
+          relationToPlayer: clampToRange(consort.stats.relationToPlayer + summary.appliedFavorDelta, -100, 100),
+          affection: clampToRange(consort.stats.affection + summary.appliedAffectionDelta, 0, 100),
         },
       };
 
@@ -423,6 +452,32 @@ export function ConsortAudiencePanel({ consort, palaceLabel, hallLabel, concubin
         selectedOptionId: option.id,
         selectedOptionLabel: option.label,
         historyOverride: nextHistory,
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleTakeLeave = async () => {
+    if (busy || !dialogueTurn) {
+      return;
+    }
+
+    const nextHistory = trimDialogueHistory([...history, { speaker: `${playerRankLabel} · ${state.name}`, text: '先行告退' }]);
+
+    setBusy(true);
+    setPickerMode(null);
+    setActionId('farewell');
+    setActionLabel('先行告退');
+    setSceneHint('你已向她道明先行告退，正等她回话。');
+
+    try {
+      await runNarrativeTurn(consort, 'follow-up', 'farewell', '先行告退', {
+        actionResult: '你向她说：“先行告退。”',
+        selectedOptionId: 'farewell',
+        selectedOptionLabel: '先行告退',
+        historyOverride: nextHistory,
+        forceFinish: true,
       });
     } finally {
       setBusy(false);
@@ -504,13 +559,16 @@ export function ConsortAudiencePanel({ consort, palaceLabel, hallLabel, concubin
         <button type="button" onClick={() => void handleFixedAction('smear', '抹黑')} disabled={busy}>
           抹黑
         </button>
+        <button type="button" onClick={() => void handleTakeLeave()} disabled={busy || !dialogueTurn}>
+          先行告退
+        </button>
         <button type="button" onClick={onBack} disabled={busy}>
           返回
         </button>
       </aside>
 
       {pickerMode === 'gift' ? (
-        <section className="harem-palace-view__audience-picker" aria-label="送礼选物">
+        <section className="harem-palace-view__audience-picker harem-palace-view__audience-picker--gift" aria-label="送礼选物">
           <header>
             <strong>可赠礼物</strong>
             <button type="button" onClick={() => setPickerMode(null)}>
@@ -533,7 +591,7 @@ export function ConsortAudiencePanel({ consort, palaceLabel, hallLabel, concubin
       ) : null}
 
       {pickerMode === 'smear' ? (
-        <section className="harem-palace-view__audience-picker" aria-label="抹黑目标选择">
+        <section className="harem-palace-view__audience-picker harem-palace-view__audience-picker--smear" aria-label="抹黑目标选择">
           <header>
             <strong>抹黑对象</strong>
             <button type="button" onClick={() => setPickerMode(null)}>
@@ -564,7 +622,7 @@ export function ConsortAudiencePanel({ consort, palaceLabel, hallLabel, concubin
         dialogueClassName="palace-dialogue-box--consort-audience"
         characterIdentity={dialogueTurn?.speakerIdentity ?? displayRank}
         characterName={dialogueTurn?.speakerName ?? consort.name}
-        content={dialogueTurn?.text ?? '她仍立在灯下，像是在等你先开口。'}
+        content={dialogueTurn?.text ?? ''}
         nextActionLabel={pickerMode === null && dialogueOptions.length === 0 ? dialogueTurn?.nextActionLabel : undefined}
         onNextAction={
           pickerMode === null && dialogueOptions.length === 0

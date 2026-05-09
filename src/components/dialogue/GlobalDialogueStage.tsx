@@ -23,6 +23,8 @@ interface GlobalDialogueStageProps {
   options?: GlobalDialogueOption[];
   onSelectOption?: ((optionId: string) => void) | undefined;
   busy?: boolean;
+  controlsDisabled?: boolean;
+  typewriter?: boolean;
 }
 
 export function GlobalDialogueStage({
@@ -40,15 +42,34 @@ export function GlobalDialogueStage({
   options = [],
   onSelectOption,
   busy = false,
+  controlsDisabled = busy,
+  typewriter,
 }: GlobalDialogueStageProps) {
   const rootClassName = ['global-dialogue-stage', className].filter(Boolean).join(' ');
   const boxClassName = ['palace-dialogue-box--global-lock', dialogueClassName].filter(Boolean).join(' ');
+  const hasOptions = options.length > 0;
 
   return (
     <section className={rootClassName} aria-label={sceneLabel} data-dialogue-lock={DIALOGUE_CONFIG.lockVersion}>
       <div className="global-dialogue-stage__portrait-stage" aria-label={portraitLabel}>
         <div className="global-dialogue-stage__portrait-frame">{portrait}</div>
       </div>
+
+      {hasOptions ? (
+        <div className="global-dialogue-stage__options palace-dialogue-box__options" role="group" aria-label="对话分支选项">
+          {options.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className="palace-dialogue-box__option"
+              onClick={() => onSelectOption?.(option.id)}
+              disabled={controlsDisabled || !onSelectOption}
+            >
+              <span>{option.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <GlobalDialogue
         ariaLabel={ariaLabel}
@@ -58,9 +79,11 @@ export function GlobalDialogueStage({
         content={content}
         nextActionLabel={nextActionLabel}
         onNextAction={onNextAction}
-        options={options}
-        onSelectOption={onSelectOption}
+        options={[]}
+        onSelectOption={undefined}
         busy={busy}
+        controlsDisabled={controlsDisabled}
+        typewriter={typewriter}
       />
     </section>
   );

@@ -9,6 +9,8 @@ import {
   requestTaiyiDialogueWithFallback,
   type TaiyiDialogueActor,
 } from '../../game/lib/taiyiDialogueRuntime';
+import { clampToRange, createDialogueId, trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
+import { traceDialogue } from '../../game/lib/dialogueTrace';
 import { requestRelationshipJudgementWithFallback } from '../../game/lib/relationshipJudgeRuntime';
 import { requestTaiyiAmbientWithFallback } from '../../game/lib/taiyiAmbientRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
@@ -34,8 +36,6 @@ interface TaiyiSceneActor extends TaiyiDialogueActor {
 
 const JIANNING_PORTRAIT_SRC = new URL('../../../picture/man/简宁.jpg', import.meta.url).href;
 const DOWAGER_PORTRAIT_SRC = new URL('../../../picture/npc/太后.jpg', import.meta.url).href;
-const trimHistory = (history: HistoryEntry[]): HistoryEntry[] => history.slice(-6);
-const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 const hashSeed = (seed: string): number =>
   seed.split('').reduce((sum, char, index) => sum + char.charCodeAt(0) * (index + 31), 0);
 
@@ -79,6 +79,27 @@ const buildConsortActor = (consort: ConcubineProfile): TaiyiSceneActor => ({
   consortId: consort.id,
 });
 
+const buildPendingEncounterTurn = (actor: TaiyiSceneActor): ConsortDialogueTurn => {
+  let text = `${actor.identity} ${actor.name}在药廊间略略停步，像是先等你把这句开场落稳。`;
+
+  if (actor.actorKind === 'jianning') {
+    text = '简宁将指尖从脉案上收回，抬眼看向你，像是在等一句真正落到实处的话。';
+  } else if (actor.actorKind === 'dowager') {
+    text = '太后仍立在药柜前，只略略侧过脸，显然已经把你的动静听进去了。';
+  }
+
+  return {
+    mode: 'line',
+    phase: 'continue',
+    speakerIdentity: actor.identity,
+    speakerName: actor.name,
+    text,
+    nextActionLabel: '回应中',
+    sceneHint: '你已在药廊下把人拦住，对方正在接这句话。',
+    options: [],
+  };
+};
+
 export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
   const {
     state,
@@ -100,6 +121,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
   const [pendingJianNingUnlock, setPendingJianNingUnlock] = useState(false);
 
   const playerRankLabel = hiddenStats.initialRank ?? '宫妃';
+  const saveId = useMemo(() => `local:${state.routeId}:${encodeURIComponent(state.name)}`, [state.name, state.routeId]);
   const dialogueOptions = dialogueTurn?.options ?? [];
   const isJianNingMet = Boolean(state.flags.isJianNingMet || medicalProgress.jianNingMet);
   const showConsultation = Number(state.stats.medicine ?? 0) >= 5;
@@ -121,9 +143,13 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
       historyOverride?: HistoryEntry[];
     },
   ) => {
-    const activeHistory = trimHistory(overrides?.historyOverride ?? history);
+    const activeHistory = trimDialogueHistory(overrides?.historyOverride ?? history);
 
     return {
+      saveId,
+      sessionId: `session:taiyi:${actor.id}:${state.routeId}:${encodeURIComponent(state.name)}`,
+      requestId: createDialogueId(`request-taiyi-${actor.id}`),
+      sceneId: `taiyi:${actor.id}`,
       routeId: state.routeId,
       playerName: state.name,
       playerRank: playerRankLabel,
@@ -181,11 +207,26 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
     const payload = buildPayload(actor, topic, actionId, actionLabel, overrides);
     const nextTurn = await requestTaiyiDialogueWithFallback(payload, actor);
     const speakerLabel = `${nextTurn.speakerIdentity} · ${nextTurn.speakerName}`;
+    traceDialogue({
+      npcId: actor.id,
+      sceneId: payload.sceneId,
+      sessionId: payload.sessionId,
+      turnsRead: nextTurn.sessionMemory?.readTurnCount ?? 0,
+      candidatesRead: nextTurn.sessionMemory?.readMemoryCandidateCount ?? 0,
+      candidatesWritten: nextTurn.sessionMemory?.writtenMemoryCandidateCount ?? nextTurn.memoryCandidates?.length ?? 0,
+      relationCandidatesRead: nextTurn.sessionMemory?.readRelationCandidateCount ?? 0,
+      relationCandidatesWritten:
+        nextTurn.sessionMemory?.writtenRelationCandidateCount ?? nextTurn.relationCandidates?.length ?? 0,
+      relationPromotedCount: nextTurn.relationMemory?.promotedCount ?? 0,
+      relationRejectedCount: nextTurn.relationMemory?.rejectedCount ?? 0,
+      relationEntryCount: nextTurn.relationMemory?.totalEntryCount ?? 0,
+      usedFallback: Boolean(nextTurn.usedFallback),
+    });
 
     setDialogueTurn(nextTurn);
     setSceneHint(nextTurn.sceneHint ?? '');
     setHistory((currentHistory) =>
-      trimHistory([...(overrides?.historyOverride ?? currentHistory), { speaker: speakerLabel, text: nextTurn.text }]),
+      trimDialogueHistory([...(overrides?.historyOverride ?? currentHistory), { speaker: speakerLabel, text: nextTurn.text }]),
     );
   };
 
@@ -207,9 +248,9 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
   ) => {
     setBusy(true);
     setActiveActor(actor);
-    setDialogueTurn(null);
+    setDialogueTurn(buildPendingEncounterTurn(actor));
     setHistory([]);
-    setSceneHint('');
+    setSceneHint('你已在药廊下把人拦住，对方正在接这句话。');
     setActiveEncounterLabel(actionLabel);
 
     try {
@@ -346,7 +387,7 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
       return;
     }
 
-    const nextHistory = trimHistory([
+    const nextHistory = trimDialogueHistory([
       ...history,
       {
         speaker: `${playerRankLabel} · ${state.name}`,
@@ -375,8 +416,8 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
         const summary = applyConsortRelationshipJudgement(activeActor.consortId, 'greet', judgement);
         const nextActor = {
           ...activeActor,
-          currentGoodwill: clamp(activeActor.currentGoodwill + summary.appliedFavorDelta, -100, 100),
-          currentAffection: clamp(activeActor.currentAffection + summary.appliedAffectionDelta, 0, 100),
+          currentGoodwill: clampToRange(activeActor.currentGoodwill + summary.appliedFavorDelta, -100, 100),
+          currentAffection: clampToRange(activeActor.currentAffection + summary.appliedAffectionDelta, 0, 100),
         };
         setActiveActor(nextActor);
 
@@ -390,8 +431,8 @@ export function TaiHospitalView({ concubines }: TaiHospitalViewProps) {
       }
 
       if (activeActor.actorKind === 'jianning') {
-        const nextFavor = clamp(medicalProgress.jianNingFavor + judgement.favorDelta, -100, 100);
-        const nextAffinity = clamp(medicalProgress.jianNingAffinity + judgement.affectionDelta, 0, 100);
+        const nextFavor = clampToRange(medicalProgress.jianNingFavor + judgement.favorDelta, -100, 100);
+        const nextAffinity = clampToRange(medicalProgress.jianNingAffinity + judgement.affectionDelta, 0, 100);
         patchMedicalProgress({
           jianNingFavor: nextFavor,
           jianNingAffinity: nextAffinity,

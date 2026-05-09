@@ -56,15 +56,21 @@ export function ChamberMainView() {
     patchMusicHallProgress,
     grantInventoryItem,
     enterMapMain,
+    enterMainChamber,
     setActiveAffairsSource,
     bondProfile,
     ensureBondProfile,
     concubines,
     ensureConcubines,
+    settlementReports,
+    latestSettlementReportId,
+    lastSeenSettlementReportId,
+    acknowledgeSettlementReport,
   } = useGameFlowStore();
   const [dialogueText, setDialogueText] = useState('');
   const [bedchamberGiftItemName, setBedchamberGiftItemName] = useState('');
-  const isOutsideScene = Boolean(activeMapLocation);
+  const isResidenceLocation = activeMapLocation === state.residenceName;
+  const isOutsideScene = Boolean(activeMapLocation && !isResidenceLocation);
   const isJianzhangAudience = activeChamberPanel === 'main' && activeMapLocation === '建章宫';
   const isKitchenScene = activeChamberPanel === 'main' && activeMapLocation === '御膳房';
   const isBaohuaHallScene = activeChamberPanel === 'main' && activeMapLocation === '宝华殿';
@@ -75,7 +81,7 @@ export function ChamberMainView() {
   const isFullSurfacePanel = activeChamberPanel !== 'main';
   const showResidenceUi = !isOutsideScene && !isFullSurfacePanel;
   const currentSceneLabel = isHaremPanelActive ? '后宫' : activeMapLocation ?? state.residenceName;
-  const currentSceneBackground = activeMapLocation ? LOCATION_SCENE_BACKGROUNDS[activeMapLocation] : undefined;
+  const currentSceneBackground = isOutsideScene && activeMapLocation ? LOCATION_SCENE_BACKGROUNDS[activeMapLocation] : undefined;
   const chamberBackgroundStyle = useMemo<CSSProperties | undefined>(
     () =>
       currentSceneBackground
@@ -123,7 +129,7 @@ export function ChamberMainView() {
       return;
     }
 
-    if (activeMapLocation) {
+    if (activeMapLocation && !isResidenceLocation) {
       setDialogueText(`娘娘，我们已到${activeMapLocation}。此处场景已切换为对应地点背景。`);
       return;
     }
@@ -131,10 +137,10 @@ export function ChamberMainView() {
     if (activeChamberPanel === 'main') {
       setDialogueText('');
     }
-  }, [activeChamberPanel, activeMapLocation, patchState, state.flags, state.residenceName]);
+  }, [activeChamberPanel, activeMapLocation, isResidenceLocation, patchState, state.flags, state.residenceName]);
 
   useEffect(() => {
-    if (activeChamberPanel !== 'main' || activeMapLocation || !state.flags.isLianQiaoMet || musicHallProgress.lianQiaoAffection <= 60 || bedchamberGiftItemName) {
+    if (activeChamberPanel !== 'main' || isOutsideScene || !state.flags.isLianQiaoMet || musicHallProgress.lianQiaoAffection <= 60 || bedchamberGiftItemName) {
       return;
     }
 
@@ -151,9 +157,9 @@ export function ChamberMainView() {
     setDialogueText('');
   }, [
     activeChamberPanel,
-    activeMapLocation,
     bedchamberGiftItemName,
     grantInventoryItem,
+    isOutsideScene,
     musicHallProgress.lastGiftXunIndex,
     musicHallProgress.lianQiaoAffection,
     patchMusicHallProgress,
@@ -179,6 +185,21 @@ export function ChamberMainView() {
     bondProfile.routeId === state.routeId ? bondProfile : buildInitialBondProfile(state.routeId, currentXunKey);
   const bondFavorDeltaThisXun = activeBondProfile.xunKey === currentXunKey ? activeBondProfile.favorDeltaThisXun : 0;
   const bondAffectionDeltaThisXun = activeBondProfile.xunKey === currentXunKey ? activeBondProfile.affectionDeltaThisXun : 0;
+  const latestSettlementReport = useMemo(
+    () => settlementReports.find((report) => report.id === latestSettlementReportId),
+    [latestSettlementReportId, settlementReports],
+  );
+  const showSettlementReport = Boolean(
+    latestSettlementReport &&
+      latestSettlementReport.id !== lastSeenSettlementReportId &&
+      activeChamberPanel === 'main' &&
+      !isJianzhangAudience &&
+      !isKitchenScene &&
+      !isBaohuaHallScene &&
+      !isHuaQingPoolScene &&
+      !isTaiHospitalScene &&
+      !isMiaoYinHallScene,
+  );
 
   const handleSidebar = (buttonId: string) => {
     if (buttonId === 'map-main') {
@@ -207,7 +228,7 @@ export function ChamberMainView() {
 
     if (action.id === 'end-xun') {
       advanceTime(Math.max(1, 7 - time.slotIndex));
-      setDialogueText('这一旬先告一段落，已转入下一旬清晨，体力按次日口径重新结算。');
+      setDialogueText('');
       return;
     }
 
@@ -280,6 +301,12 @@ export function ChamberMainView() {
               <span>{button.label}</span>
             </button>
           ))}
+          {isOutsideScene ? (
+            <button type="button" className="palace-sidebar__quick-return" aria-label="回宫" onClick={() => enterMainChamber()}>
+              <span>回</span>
+              <span>宫</span>
+            </button>
+          ) : null}
         </nav>
 
         {showResidenceUi ? (
@@ -337,9 +364,20 @@ export function ChamberMainView() {
         ) : isJianzhangAudience ? (
           <DowagerAudiencePanel onLeave={enterMapMain} />
         ) : activeChamberPanel === 'harem' ? (
-          <HaremPalaceView concubines={concubines} />
+          <HaremPalaceView
+            concubines={concubines}
+            playerResidenceName={state.residenceName}
+            playerName={state.name}
+            playerRankLabel={hiddenStats.initialRank ?? '娘娘'}
+          />
         ) : activeChamberPanel === 'chronicle' ? (
-          <ChroniclePanelView time={time} state={state} hiddenStats={hiddenStats} onClose={closeChamberPanel} />
+          <ChroniclePanelView
+            time={time}
+            state={state}
+            hiddenStats={hiddenStats}
+            settlementReports={settlementReports}
+            onClose={closeChamberPanel}
+          />
         ) : activeChamberPanel === 'bond' ? (
           <BondPanelView
             bondProfile={activeBondProfile}
@@ -368,7 +406,24 @@ export function ChamberMainView() {
           <ConcubineListView concubines={concubines} onClose={closeChamberPanel} />
         ) : null}
 
+        {showSettlementReport && latestSettlementReport ? (
+          <GlobalDialogueStage
+            sceneLabel="旬月通报场景"
+            portraitLabel="娇娇立绘"
+            portrait={<img src={ASSISTANT_PORTRAIT_SRC} alt="娇娇" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--assistant" />}
+            ariaLabel="娇娇旬月通报"
+            className="global-dialogue-stage--chamber global-dialogue-stage--assistant"
+            dialogueClassName="palace-dialogue-box--chamber"
+            characterIdentity="贴身宫女"
+            characterName="娇娇"
+            content={`${latestSettlementReport.title}。${latestSettlementReport.lines.join(' ')}`}
+            nextActionLabel="记下"
+            onNextAction={() => acknowledgeSettlementReport(latestSettlementReport.id)}
+          />
+        ) : null}
+
         {dialogueText &&
+        !showSettlementReport &&
         activeChamberPanel === 'main' &&
         !isJianzhangAudience &&
         !isBaohuaHallScene &&
@@ -380,7 +435,7 @@ export function ChamberMainView() {
             portraitLabel="娇娇立绘"
             portrait={<img src={ASSISTANT_PORTRAIT_SRC} alt="娇娇" className="global-dialogue-stage__portrait-media global-dialogue-stage__portrait-media--assistant" />}
             ariaLabel="寝殿对白"
-            className="global-dialogue-stage--chamber-guide global-dialogue-stage--assistant"
+            className="global-dialogue-stage--chamber global-dialogue-stage--assistant"
             dialogueClassName="palace-dialogue-box--chamber"
             characterIdentity="贴身宫女"
             characterName="娇娇"
@@ -390,7 +445,7 @@ export function ChamberMainView() {
           />
         ) : null}
 
-        {bedchamberGiftItemName && activeChamberPanel === 'main' && !activeMapLocation ? (
+        {bedchamberGiftItemName && !showSettlementReport && activeChamberPanel === 'main' && !isOutsideScene ? (
           <GlobalDialogueStage
             sceneLabel="寝殿连翘赠礼场景"
             portraitLabel="连翘立绘"

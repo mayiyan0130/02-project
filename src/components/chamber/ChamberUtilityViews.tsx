@@ -3,7 +3,7 @@ import { AFFAIRS_UI_BACKGROUND, BOND_UI_BACKGROUND, CHRONICLE_UI_BACKGROUND, INV
 import { resolveUnlockedBondCharacters } from '../../game/data/bondPresets';
 import { getInventoryRecyclePrice } from '../../game/data/inventoryPresets';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
-import type { BondProfileState, ConcubineProfile, GameNumericsState, HiddenStatsState, RouteId } from '../../game/types';
+import type { BondProfileState, ConcubineProfile, GameNumericsState, HiddenStatsState, RouteId, SettlementReport } from '../../game/types';
 
 type ChronicleTabId = 'edict' | 'secret' | 'quarrel' | 'event' | 'rumor';
 type MiscInfoCardId = 'emperor' | 'officials' | 'dowager' | 'father' | 'court';
@@ -217,24 +217,39 @@ interface ChroniclePanelViewProps {
   time: { year: number; month: number; xun: number };
   state: GameNumericsState;
   hiddenStats: HiddenStatsState;
+  settlementReports: SettlementReport[];
   onClose: () => void;
 }
 
-export function ChroniclePanelView({ time, state, hiddenStats, onClose }: ChroniclePanelViewProps) {
+export function ChroniclePanelView({ time, state, hiddenStats, settlementReports, onClose }: ChroniclePanelViewProps) {
   const [activeTab, setActiveTab] = useState<ChronicleTabId>('edict');
+  const monthReports = useMemo(
+    () => settlementReports.filter((report) => report.kind === 'month').slice().reverse(),
+    [settlementReports],
+  );
+  const xunReports = useMemo(
+    () => settlementReports.filter((report) => report.kind === 'xun').slice().reverse(),
+    [settlementReports],
+  );
 
   const entries = useMemo<Record<ChronicleTabId, Array<{ title: string; detail: string }>>>(
     () => ({
-      edict: [
-        {
-          title: `${time.year}年${time.month}月第${time.xun}旬宫中暂未颁新旨`,
-          detail: '眼下仍以旧例行事，若后续有封赏、迁宫或禁足，会在此页首先记录。',
-        },
-        {
-          title: `${state.residenceName}日常用度照旧`,
-          detail: `当前银两 ${hiddenStats.silver}，体力 ${state.stamina}。寝殿未见额外裁减。`,
-        },
-      ],
+      edict:
+        monthReports.length > 0
+          ? monthReports.map((report) => ({
+              title: report.title,
+              detail: report.summary,
+            }))
+          : [
+              {
+                title: `${time.year}年${time.month}月第${time.xun}旬宫中暂未颁新旨`,
+                detail: '眼下仍以旧例行事，若后续有封赏、迁宫或禁足，会在此页首先记录。',
+              },
+              {
+                title: `${state.residenceName}日常用度照旧`,
+                detail: `当前银两 ${hiddenStats.silver}，体力 ${state.stamina}。寝殿未见额外裁减。`,
+              },
+            ],
       secret: [
         {
           title: '娇娇已记下娘娘近旬动向',
@@ -251,16 +266,22 @@ export function ChroniclePanelView({ time, state, hiddenStats, onClose }: Chroni
           detail: '与嫔妃口角、宫女争执、御前失仪等事件触发后，会依时间顺序记在这里。',
         },
       ],
-      event: [
-        {
-          title: '当前流程运转正常',
-          detail: '主场景、后宫、个人属性与外出场景均可继续运行，不会因打开纪事页中断。',
-        },
-        {
-          title: '本旬重点仍是安排行程',
-          detail: '学习、休养、外出、查看人物关系等入口已经接通。',
-        },
-      ],
+      event:
+        xunReports.length > 0
+          ? xunReports.map((report) => ({
+              title: report.title,
+              detail: report.summary,
+            }))
+          : [
+              {
+                title: '当前流程运转正常',
+                detail: '主场景、后宫、个人属性与外出场景均可继续运行，不会因打开纪事页中断。',
+              },
+              {
+                title: '本旬重点仍是安排行程',
+                detail: '学习、休养、外出、查看人物关系等入口已经接通。',
+              },
+            ],
       rumor: [
         {
           title: hiddenStats.favor >= 40 ? '宫中已有人议论娘娘近来颇得关注' : '宫中对娘娘的议论暂时不多',
@@ -268,7 +289,7 @@ export function ChroniclePanelView({ time, state, hiddenStats, onClose }: Chroni
         },
       ],
     }),
-    [hiddenStats.favor, hiddenStats.silver, state.openingTendency, state.residenceName, state.stamina, time.month, time.xun, time.year],
+    [hiddenStats.favor, hiddenStats.silver, monthReports, state.openingTendency, state.residenceName, state.stamina, time.month, time.xun, time.year, xunReports],
   );
 
   return (

@@ -7,7 +7,6 @@ import {
   HOT_SPRING_SOLO_STAMINA_RECOVER,
   HOT_SPRING_SOLO_STRESS_REDUCE,
 } from '../../config/constants';
-import { isSpecialSlot } from '../../engine/TimeEngine';
 import {
   getConcubineDisplayRankText,
   getConcubinePortraitPath,
@@ -16,6 +15,7 @@ import {
   requestHuaqingDialogueWithFallback,
   type HuaqingDialogueActor,
 } from '../../game/lib/huaqingDialogueRuntime';
+import { clampToRange, trimDialogueHistory } from '../../game/lib/dialogueSceneUtils';
 import { requestRelationshipJudgementWithFallback } from '../../game/lib/relationshipJudgeRuntime';
 import { useGameFlowStore } from '../../game/store/gameFlowStore';
 import type {
@@ -55,8 +55,7 @@ interface HuaqingSceneActor extends HuaqingDialogueActor {
 
 const LIANQIAO_PORTRAIT_SRC = new URL('../../../picture/npc/连翘.jpg', import.meta.url).href;
 
-const trimHistory = (history: HistoryEntry[]): HistoryEntry[] => history.slice(-6);
-const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+const isSpecialSlot = (slot: string): boolean => slot === '深夜';
 
 const buildLianQiaoActor = (favor: number, affection: number): HuaqingSceneActor => ({
   id: 'lianqiao',
@@ -160,7 +159,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
       historyOverride?: HistoryEntry[];
     },
   ) => {
-    const activeHistory = trimHistory(overrides?.historyOverride ?? history);
+    const activeHistory = trimDialogueHistory(overrides?.historyOverride ?? history);
 
     return {
       routeId: state.routeId,
@@ -224,7 +223,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
     setDialogueTurn(nextTurn);
     setSceneHint(nextTurn.sceneHint ?? '');
     setHistory((currentHistory) =>
-      trimHistory([...(overrides?.historyOverride ?? currentHistory), { speaker: speakerLabel, text: nextTurn.text }]),
+      trimDialogueHistory([...(overrides?.historyOverride ?? currentHistory), { speaker: speakerLabel, text: nextTurn.text }]),
     );
   };
 
@@ -298,8 +297,8 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
     applyStoryEffects({ stress: -HOT_SPRING_SHARED_STRESS_REDUCE });
 
     if (invite.actorKind === 'lianqiao') {
-      const nextFavor = clamp(musicHallProgress.lianQiaoFavor + HOT_SPRING_SHARED_FAVORABILITY_GAIN, -100, 100);
-      const nextAffection = clamp(musicHallProgress.lianQiaoAffection + HOT_SPRING_SHARED_AFFECTION_GAIN, 0, 100);
+      const nextFavor = clampToRange(musicHallProgress.lianQiaoFavor + HOT_SPRING_SHARED_FAVORABILITY_GAIN, -100, 100);
+      const nextAffection = clampToRange(musicHallProgress.lianQiaoAffection + HOT_SPRING_SHARED_AFFECTION_GAIN, 0, 100);
       patchMusicHallProgress({
         lianQiaoFavor: nextFavor,
         lianQiaoAffection: nextAffection,
@@ -320,8 +319,8 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
       ...consort,
       stats: {
         ...consort.stats,
-        relationToPlayer: clamp(consort.stats.relationToPlayer + HOT_SPRING_SHARED_FAVORABILITY_GAIN, -100, 100),
-        affection: clamp(consort.stats.affection + HOT_SPRING_SHARED_AFFECTION_GAIN, 0, 100),
+        relationToPlayer: clampToRange(consort.stats.relationToPlayer + HOT_SPRING_SHARED_FAVORABILITY_GAIN, -100, 100),
+        affection: clampToRange(consort.stats.affection + HOT_SPRING_SHARED_AFFECTION_GAIN, 0, 100),
       },
     }));
 
@@ -340,8 +339,8 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
         portraitSrc: invite.portraitSrc,
         personality: invite.personality,
         summary: invite.summary,
-        currentGoodwill: clamp(invite.currentGoodwill + HOT_SPRING_SHARED_FAVORABILITY_GAIN, -100, 100),
-        currentAffection: clamp(invite.currentAffection + HOT_SPRING_SHARED_AFFECTION_GAIN, 0, 100),
+        currentGoodwill: clampToRange(invite.currentGoodwill + HOT_SPRING_SHARED_FAVORABILITY_GAIN, -100, 100),
+        currentAffection: clampToRange(invite.currentAffection + HOT_SPRING_SHARED_AFFECTION_GAIN, 0, 100),
       },
       'shared-bath',
       '双人沐浴',
@@ -359,7 +358,7 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
       return;
     }
 
-    const nextHistory = trimHistory([
+    const nextHistory = trimDialogueHistory([
       ...history,
       {
         speaker: `${playerRankLabel} · ${state.name}`,
@@ -385,8 +384,8 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
       );
 
       if (activeActor.actorKind === 'lianqiao') {
-        const nextFavor = clamp(musicHallProgress.lianQiaoFavor + judgement.favorDelta, -100, 100);
-        const nextAffection = clamp(musicHallProgress.lianQiaoAffection + judgement.affectionDelta, 0, 100);
+        const nextFavor = clampToRange(musicHallProgress.lianQiaoFavor + judgement.favorDelta, -100, 100);
+        const nextAffection = clampToRange(musicHallProgress.lianQiaoAffection + judgement.affectionDelta, 0, 100);
         patchMusicHallProgress({
           lianQiaoFavor: nextFavor,
           lianQiaoAffection: nextAffection,
@@ -413,8 +412,8 @@ export function HuaQingPoolView({ concubines }: HuaQingPoolViewProps) {
         const summary = applyConsortRelationshipJudgement(activeActor.consortId, 'greet', judgement);
         const nextActor = {
           ...activeActor,
-          currentGoodwill: clamp(activeActor.currentGoodwill + summary.appliedFavorDelta, -100, 100),
-          currentAffection: clamp(activeActor.currentAffection + summary.appliedAffectionDelta, 0, 100),
+          currentGoodwill: clampToRange(activeActor.currentGoodwill + summary.appliedFavorDelta, -100, 100),
+          currentAffection: clampToRange(activeActor.currentAffection + summary.appliedAffectionDelta, 0, 100),
         };
         setActiveActor(nextActor);
         await runNarrativeTurn(nextActor, 'follow-up', 'shared-bath-follow-up', '双人沐浴', {

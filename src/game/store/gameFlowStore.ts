@@ -11,6 +11,13 @@ import {
   enforceConcubineFavorTierCaps,
   normalizeConcubineProfile,
 } from '../data/concubineRoster';
+import {
+  getRankWeight,
+  normalizeTrackedPlayerRankLabel,
+  resolvePlayerActualRankLabel,
+  resolvePlayerRankByPrestige,
+  resolvePlayerResidenceByRank,
+} from '../lib/rankRuntime';
 import type {
   AffairSourceLabel,
   BondProfileState,
@@ -32,6 +39,7 @@ import type {
   RouteSelectionProfile,
   SceneId,
   MapAreaId,
+  SettlementReport,
 } from '../types';
 
 interface GameFlowStore {
@@ -60,6 +68,9 @@ interface GameFlowStore {
   medicalProgress: MedicalProgressState;
   musicHallProgress: MusicHallProgressState;
   templeProgress: TempleProgressState;
+  settlementReports: SettlementReport[];
+  latestSettlementReportId?: string;
+  lastSeenSettlementReportId?: string;
   setCurrentView: (view: CurrentView) => void;
   setScene: (scene: SceneId) => void;
   openChamberPanel: (panel: ChamberPanelId) => void;
@@ -101,6 +112,7 @@ interface GameFlowStore {
   };
   applyBondJudgement: (result: RelationshipJudgeOutcome) => void;
   advanceTime: (steps?: number) => void;
+  acknowledgeSettlementReport: (reportId?: string) => void;
   applyStoryEffects: (effects: Partial<GameNumericsState> & { stats?: Record<string, number>; flags?: Record<string, boolean> }) => void;
 }
 
@@ -122,12 +134,145 @@ const getCurrentXunKey = (time: PalaceTimeState): string => `${time.year}-${time
 const sanitizeRelationshipDelta = (value: number): number => Math.max(-1, Math.min(1, Math.trunc(value || 0)));
 const resolveXunStartingStamina = (): number => clampInt(STAMINA_INITIAL_PER_XUN, 0, STAMINA_MAX);
 const normalizePlayerFavor = (favor: number): number => clampToRange(Number(favor ?? 0), PLAYER_FAVOR_RANGE);
+const MAX_SETTLEMENT_REPORTS = 20;
+
+const baseMonthlyStipendByRank: Record<string, number> = {
+  皇贵妃: 230,
+  皇后: 220,
+  贵妃: 210,
+  '德妃 / 淑妃 / 贤妃': 200,
+  妃: 190,
+  九嫔: 180,
+  贵嫔: 170,
+  婕好: 160,
+  容华: 150,
+  嫔: 140,
+  贵人: 130,
+  美人: 120,
+  才人: 110,
+  常在: 100,
+  御女: 90,
+  选侍: 80,
+  答应: 70,
+  更衣: 60,
+  官女子: 50,
+};
 
 const resolveFavorPresentation = (favor: number): Pick<HiddenStatsState, 'favorLabel' | 'favorColor'> => {
   const tier = getFavorTierByValue(favor);
   return {
     favorLabel: tier.label,
     favorColor: tier.color,
+  };
+};
+
+const resolveMonthlyEconomy = (state: GameNumericsState, hiddenStats: HiddenStatsState) => {
+  const rankName =
+    normalizeTrackedPlayerRankLabel(hiddenStats.initialRank) ?? resolvePlayerRankByPrestige(state.prestige);
+  const baseStipend = state.flags.inColdPalace ? 0 : baseMonthlyStipendByRank[rankName] ?? 50;
+  const rankBelowFei = getRankWeight(rankName) > getRankWeight('妃');
+  let stipend = baseStipend;
+
+  if (rankBelowFei && state.favor > 0 && state.favor < 20) {
+    stipend = Math.floor(stipend * 0.7);
+  } else if (rankBelowFei && state.favor <= 0) {
+    stipend = Math.floor(stipend * 0.5);
+  }
+
+  if (state.favor >= 61) {
+    stipend = Math.floor(stipend * 1.2);
+  }
+
+  const palaceExpense = Math.floor(baseStipend * 0.2) + (state.favor >= 61 ? Math.floor(baseStipend * 0.1) : 0);
+  const netSilver = stipend - palaceExpense;
+
+  return {
+    rankName,
+    baseStipend,
+    stipend,
+    palaceExpense,
+    netSilver,
+  };
+};
+
+interface MonthGovernanceUpdate {
+  previousRankName: string;
+  nextRankName: string;
+  previousResidenceName: GameNumericsState['residenceName'];
+  nextResidenceName: GameNumericsState['residenceName'];
+}
+
+const buildSettlementReport = ({
+  currentState,
+  nextState,
+  nextTime,
+  xunTransitions,
+  monthTransitions,
+  economy,
+  monthGovernance,
+  reportIndex,
+}: {
+  currentState: GameNumericsState;
+  nextState: GameNumericsState;
+  nextTime: PalaceTimeState;
+  xunTransitions: number;
+  monthTransitions: number;
+  economy: ReturnType<typeof resolveMonthlyEconomy> | null;
+  monthGovernance: MonthGovernanceUpdate | null;
+  reportIndex: number;
+}): SettlementReport | null => {
+  if (xunTransitions <= 0) {
+    return null;
+  }
+
+  const isMonthReport = monthTransitions > 0;
+  const title = isMonthReport
+    ? `${nextTime.year}年${nextTime.month}月月初通报`
+    : `${nextTime.year}年${nextTime.month}月第${nextTime.xun}旬清晨通报`;
+  const lines = [
+    xunTransitions > 1
+      ? `已连续推进${xunTransitions}旬，当前回到${nextTime.month}月第${nextTime.xun}旬清晨。`
+      : `已入${nextTime.month}月第${nextTime.xun}旬清晨，体力按新旬口径恢复为${nextState.stamina}。`,
+  ];
+
+  if (economy && monthTransitions > 0) {
+    lines.push(
+      `上月账册已结：${economy.rankName}基础月俸${economy.baseStipend}两，实发${economy.stipend}两，宫务开销${economy.palaceExpense}两，净${economy.netSilver >= 0 ? '入账' : '支出'}${Math.abs(economy.netSilver * monthTransitions)}两。`,
+    );
+    lines.push(`娘娘当前银两${nextState.silver}两；宠爱${nextState.favor}，声望${nextState.prestige}。`);
+    if (monthGovernance) {
+      if (
+        monthGovernance.previousRankName !== monthGovernance.nextRankName &&
+        monthGovernance.previousResidenceName !== monthGovernance.nextResidenceName
+      ) {
+        lines.push(
+          `月末封册已重排：位分由${monthGovernance.previousRankName}调整为${monthGovernance.nextRankName}，居所自${monthGovernance.previousResidenceName}迁至${monthGovernance.nextResidenceName}。`,
+        );
+      } else if (monthGovernance.previousRankName !== monthGovernance.nextRankName) {
+        lines.push(`月末封册已重排：位分由${monthGovernance.previousRankName}调整为${monthGovernance.nextRankName}。`);
+      } else if (monthGovernance.previousResidenceName !== monthGovernance.nextResidenceName) {
+        lines.push(`本月按宫规迁居：居所已由${monthGovernance.previousResidenceName}迁至${monthGovernance.nextResidenceName}。`);
+      } else {
+        lines.push(`本月位分与居所维持旧例，仍为${monthGovernance.nextRankName}、居于${monthGovernance.nextResidenceName}。`);
+      }
+    }
+    lines.push('怀孕、案件与冷宫等更重结算尚未接入真实判定，本次先完成账本、位分推进与迁宫留档。');
+  } else {
+    lines.push('宫中暂未触发强制夜间事件，娘娘仍可自由安排行程。');
+    if (currentState.stamina !== nextState.stamina) {
+      lines.push(`上一旬剩余体力不继承，新旬体力已重算为${nextState.stamina}。`);
+    }
+  }
+
+  return {
+    id: `${nextTime.year}-${nextTime.month}-${nextTime.xun}-${reportIndex}`,
+    kind: isMonthReport ? 'month' : 'xun',
+    year: nextTime.year,
+    month: nextTime.month,
+    xun: nextTime.xun,
+    title,
+    summary: lines.join(' '),
+    lines,
   };
 };
 
@@ -384,6 +529,9 @@ export const useGameFlowStore = create<GameFlowStore>()(
       medicalProgress: createInitialMedicalProgress(),
       musicHallProgress: createInitialMusicHallProgress(),
       templeProgress: createInitialTempleProgress(),
+      settlementReports: [],
+      latestSettlementReportId: undefined,
+      lastSeenSettlementReportId: undefined,
       setCurrentView: (currentView) => set({ currentView }),
       setScene: (scene) => set({ scene }),
       openChamberPanel: (activeChamberPanel) => set({ activeChamberPanel }),
@@ -414,6 +562,9 @@ export const useGameFlowStore = create<GameFlowStore>()(
           medicalProgress: createInitialMedicalProgress(),
           musicHallProgress: createInitialMusicHallProgress(),
           templeProgress: createInitialTempleProgress(),
+          settlementReports: [],
+          latestSettlementReportId: undefined,
+          lastSeenSettlementReportId: undefined,
         })),
       applyRouteSelection: (profile) =>
         set((current) => {
@@ -458,6 +609,9 @@ export const useGameFlowStore = create<GameFlowStore>()(
             medicalProgress: createInitialMedicalProgress(),
             musicHallProgress: createInitialMusicHallProgress(),
             templeProgress: createInitialTempleProgress(),
+            settlementReports: [],
+            latestSettlementReportId: undefined,
+            lastSeenSettlementReportId: undefined,
           };
         }),
       patchState: (patch) =>
@@ -960,6 +1114,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
           let slotProgress = current.time.slotProgress ?? 0;
           let remaining = Math.max(0, steps);
           let xunTransitions = 0;
+          let monthTransitions = 0;
 
           while (remaining > 0) {
             const delta = Math.min(1 - slotProgress, remaining);
@@ -976,6 +1131,7 @@ export const useGameFlowStore = create<GameFlowStore>()(
                 if (xun > 3) {
                   xun = 1;
                   month += 1;
+                  monthTransitions += 1;
                   if (month > 12) {
                     month = 1;
                     year += 1;
@@ -985,10 +1141,33 @@ export const useGameFlowStore = create<GameFlowStore>()(
             }
           }
 
+          const economy = monthTransitions > 0 ? resolveMonthlyEconomy(current.state, current.hiddenStats) : null;
+          const monthlyNetSilver = economy ? economy.netSilver * monthTransitions : 0;
+          const currentRankName =
+            normalizeTrackedPlayerRankLabel(current.hiddenStats.initialRank) ?? resolvePlayerRankByPrestige(current.state.prestige);
+          const nextRankName =
+            monthTransitions > 0
+              ? resolvePlayerActualRankLabel(current.hiddenStats.initialRank, current.state.prestige, monthTransitions * 2)
+              : currentRankName;
+          const nextResidenceName =
+            monthTransitions > 0
+              ? resolvePlayerResidenceByRank(current.state.routeId, nextRankName)
+              : current.state.residenceName;
+          const monthGovernance =
+            monthTransitions > 0
+              ? {
+                  previousRankName: currentRankName,
+                  nextRankName,
+                  previousResidenceName: current.state.residenceName,
+                  nextResidenceName,
+                }
+              : null;
           const nextState = xunTransitions > 0
             ? {
                 ...current.state,
                 stamina: resolveXunStartingStamina(),
+                silver: Math.max(0, current.state.silver + monthlyNetSilver),
+                residenceName: nextResidenceName,
               }
             : current.state;
           const nextConcubines =
@@ -999,21 +1178,49 @@ export const useGameFlowStore = create<GameFlowStore>()(
             xunTransitions > 0
               ? current.customConsorts.map((consort) => applyConcubinePressureHealthPenalty(consort, xunTransitions))
               : current.customConsorts;
+          const nextTime = {
+            year,
+            month,
+            xun,
+            slotIndex,
+            slot: timeSlots[slotIndex],
+            slotProgress,
+          };
+          const settlementReport = buildSettlementReport({
+            currentState: current.state,
+            nextState,
+            nextTime,
+            xunTransitions,
+            monthTransitions,
+            economy,
+            monthGovernance,
+            reportIndex: current.settlementReports.length + 1,
+          });
+          const settlementReports = settlementReport
+            ? [...current.settlementReports, settlementReport].slice(-MAX_SETTLEMENT_REPORTS)
+            : current.settlementReports;
 
           return {
             state: nextState,
+            hiddenStats:
+              xunTransitions > 0
+                ? {
+                    ...current.hiddenStats,
+                    silver: nextState.silver,
+                    ...(monthTransitions > 0 ? { initialRank: nextRankName } : {}),
+                  }
+                : current.hiddenStats,
             concubines: enforceRosterFavorCaps(nextConcubines, nextState.favor),
             customConsorts: nextCustomConsorts,
-            time: {
-              year,
-              month,
-              xun,
-              slotIndex,
-              slot: timeSlots[slotIndex],
-              slotProgress,
-            },
+            time: nextTime,
+            settlementReports,
+            latestSettlementReportId: settlementReport?.id ?? current.latestSettlementReportId,
           };
         }),
+      acknowledgeSettlementReport: (reportId) =>
+        set((current) => ({
+          lastSeenSettlementReportId: reportId ?? current.latestSettlementReportId,
+        })),
     }),
     {
       name: 'palace-galgame-flow',
@@ -1043,6 +1250,9 @@ export const useGameFlowStore = create<GameFlowStore>()(
         medicalProgress: state.medicalProgress,
         musicHallProgress: state.musicHallProgress,
         templeProgress: state.templeProgress,
+        settlementReports: state.settlementReports,
+        latestSettlementReportId: state.latestSettlementReportId,
+        lastSeenSettlementReportId: state.lastSeenSettlementReportId,
       }),
       merge: (persisted, current) => ({
         ...current,
@@ -1074,6 +1284,9 @@ export const useGameFlowStore = create<GameFlowStore>()(
         medicalProgress: (persisted as Partial<GameFlowStore>)?.medicalProgress ?? createInitialMedicalProgress(),
         musicHallProgress: (persisted as Partial<GameFlowStore>)?.musicHallProgress ?? createInitialMusicHallProgress(),
         templeProgress: (persisted as Partial<GameFlowStore>)?.templeProgress ?? createInitialTempleProgress(),
+        settlementReports: (persisted as Partial<GameFlowStore>)?.settlementReports ?? [],
+        latestSettlementReportId: (persisted as Partial<GameFlowStore>)?.latestSettlementReportId,
+        lastSeenSettlementReportId: (persisted as Partial<GameFlowStore>)?.lastSeenSettlementReportId,
       }),
     },
   ),

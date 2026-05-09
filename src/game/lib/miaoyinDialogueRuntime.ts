@@ -152,6 +152,7 @@ const buildFallbackTurn = (
       nextActionLabel: '收起',
       sceneHint: '这一回话已经收住，可以回到妙音堂主界面了。',
       options: [],
+      usedFallback: true,
     };
   }
 
@@ -165,6 +166,7 @@ const buildFallbackTurn = (
       nextActionLabel: '收起',
       sceneHint: '这一回偶遇已经收束，但圣意并不会就此散去。',
       options: [],
+      usedFallback: true,
     };
   }
 
@@ -177,6 +179,7 @@ const buildFallbackTurn = (
     nextActionLabel: '收起',
     sceneHint: fallback.sceneHint,
     options: buildFallbackOptions(actor, payload),
+    usedFallback: true,
   };
 };
 
@@ -191,6 +194,11 @@ const normalizeMiaoYinDialogueResponse = (
   const fallback = buildFallbackTurn(payload, actor);
   const text = String(response.text ?? '').trim();
   const mode = response.mode === 'line' ? 'line' : 'branch';
+  const memoryCandidates = Array.isArray(response.memoryCandidates) ? response.memoryCandidates.slice(0, 5) : [];
+  const relationCandidates = Array.isArray(response.relationCandidates) ? response.relationCandidates.slice(0, 6) : [];
+  const affectHints = Array.isArray(response.affectHints) ? response.affectHints.slice(0, 3) : [];
+  const sessionMemory = response.sessionMemory;
+  const relationMemory = response.relationMemory;
 
   if (!text) {
     return fallback;
@@ -206,6 +214,12 @@ const normalizeMiaoYinDialogueResponse = (
       nextActionLabel: String(response.nextActionLabel ?? '').trim() || '下一句',
       sceneHint: String(response.sceneHint ?? '').trim() || fallback.sceneHint,
       options: [],
+      memoryCandidates,
+      relationCandidates,
+      affectHints,
+      sessionMemory,
+      relationMemory,
+      usedFallback: false,
     };
   }
 
@@ -236,6 +250,12 @@ const normalizeMiaoYinDialogueResponse = (
     nextActionLabel: String(response.nextActionLabel ?? '').trim() || fallback.nextActionLabel,
     sceneHint: String(response.sceneHint ?? '').trim() || fallback.sceneHint,
     options,
+    memoryCandidates,
+    relationCandidates,
+    affectHints,
+    sessionMemory,
+    relationMemory,
+    usedFallback: false,
   };
 };
 
